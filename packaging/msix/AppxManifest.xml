@@ -19,7 +19,7 @@
     ProcessorArchitecture="$(Architecture)" />
 
   <Properties>
-    <DisplayName>ussh</DisplayName>
+    <DisplayName>uSSH</DisplayName>
     <PublisherDisplayName>$(PublisherDisplayName)</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
     <Description>SSH client with tabs, saved servers, tunnels and long-running stable sessions.</Description>
@@ -36,7 +36,7 @@
   <Applications>
     <Application Id="ussh" Executable="ussh.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="ussh"
+        DisplayName="uSSH"
         Description="SSH client with stable long-running sessions"
         BackgroundColor="transparent"
         Square150x150Logo="Images\Square150x150Logo.png"

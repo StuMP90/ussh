@@ -148,6 +148,9 @@ The tarball is self-contained and includes an `install.sh` (installs to `~/.loca
 
 | Keys | Action |
 |---|---|
+| Ctrl+Tab / Ctrl+PageDown | Next tab |
+| Ctrl+Shift+Tab / Ctrl+PageUp | Previous tab |
+| Alt+1 … Alt+8 / Alt+9 | Go to tab 1–8 / last tab |
 | Ctrl+Shift+C / Ctrl+Insert | Copy selection |
 | Ctrl+Shift+V / Shift+Insert / middle-click | Paste |
 | Shift+PageUp / Shift+PageDown | Scroll back / forward |

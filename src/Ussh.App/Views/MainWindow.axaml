@@ -4,7 +4,7 @@
         xmlns:views="using:Ussh.App.Views"
         x:Class="Ussh.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="ussh"
+        Title="uSSH"
         Icon="/Assets/ussh.ico"
         Width="1280" Height="800"
         MinWidth="640" MinHeight="400"
@@ -19,21 +19,25 @@
     </DataTemplate>
   </Window.DataTemplates>
 
-  <Window.KeyBindings>
-    <KeyBinding Gesture="Ctrl+Shift+L" Command="{Binding LockCommand}" />
-  </Window.KeyBindings>
+  <Window.Styles>
+    <!-- Tab headers don't take keyboard focus; the selected terminal gets it (see code-behind). -->
+    <Style Selector="TabItem">
+      <Setter Property="Focusable" Value="False" />
+    </Style>
+  </Window.Styles>
 
   <Panel>
     <DockPanel IsVisible="{Binding !IsLocked}">
       <Border DockPanel.Dock="Top" Padding="10,6" Background="#10FFFFFF">
         <DockPanel>
           <Button DockPanel.Dock="Right" Content="Lock" Command="{Binding LockCommand}"
-                  ToolTip.Tip="Lock ussh (Ctrl+Shift+L). Sessions keep running." />
-          <TextBlock Text="ussh" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  ToolTip.Tip="Lock uSSH (Ctrl+Shift+L). Sessions keep running." />
+          <TextBlock Text="uSSH" FontWeight="SemiBold" VerticalAlignment="Center" />
         </DockPanel>
       </Border>
 
-      <TabControl ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab}" Padding="0">
+      <TabControl x:Name="TabStrip" ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab}" Padding="0"
+                  SelectionChanged="OnTabSelectionChanged">
         <TabControl.ItemTemplate>
           <DataTemplate DataType="vm:TabViewModel">
             <StackPanel Orientation="Horizontal" Spacing="8">

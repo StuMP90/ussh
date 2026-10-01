@@ -18,7 +18,7 @@ cp "$ROOT/src/Ussh.App/Assets/ussh.png" "$STAGE/share/icons/hicolor/256x256/apps
 cat > "$STAGE/share/applications/ussh.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=ussh
+Name=uSSH
 Comment=SSH client with stable long-running sessions
 Exec=ussh
 Icon=ussh

@@ -73,7 +73,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UnlockCommand))]
     private bool _isBusy;
 
-    public string LockTitle => IsSetupRequired ? "Welcome to ussh" : "ussh is locked";
+    public string LockTitle => IsSetupRequired ? "Welcome to uSSH" : "uSSH is locked";
 
     public string LockPrompt => IsSetupRequired
         ? $"Create an admin password. It encrypts your saved servers, passwords and keys, and is required to connect or change server settings. Minimum {Vault.MinimumPasswordLength} characters. It cannot be recovered if forgotten."
@@ -216,6 +216,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
         tab.Detach();
         await _sessions.CloseAsync(tab.Session);
         OnPropertyChanged(nameof(LiveSessionNote));
+    }
+
+    public void SelectRelativeTab(int delta)
+    {
+        if (Tabs.Count == 0)
+            return;
+        var index = SelectedTab == null ? 0 : Tabs.IndexOf(SelectedTab);
+        SelectedTab = Tabs[((index + delta) % Tabs.Count + Tabs.Count) % Tabs.Count];
+    }
+
+    /// <summary>Selects the tab at <paramref name="index"/>; -1 selects the last tab.</summary>
+    public void SelectTabAt(int index)
+    {
+        if (Tabs.Count == 0)
+            return;
+        SelectedTab = Tabs[index < 0 ? Tabs.Count - 1 : Math.Min(index, Tabs.Count - 1)];
     }
 
     public int ConnectedSessionCount => _sessions.Sessions.Count(s => s.State == SessionState.Connected);

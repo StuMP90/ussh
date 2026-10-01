@@ -1,4 +1,7 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -144,6 +147,92 @@ public sealed class UiTests : IDisposable
         await vm.CloseTabAsync(tab);
         Assert.DoesNotContain(tab, vm.Tabs);
         await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task ClickingOrShortcuttingToATabFocusesItsTerminal()
+    {
+        var server = SshTestServer.TryStart();
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        var profile = AddServer(vm, "Test server", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        vm.Connect(profile);
+        var first = (TerminalTabViewModel)vm.SelectedTab!;
+        vm.Connect(profile);
+        var second = (TerminalTabViewModel)vm.SelectedTab!;
+        await WaitUntil(() => first.Session.State == SessionState.Connected && second.Session.State == SessionState.Connected, "both connected");
+        await Pump(200);
+
+        // Mouse: Servers -> second terminal -> first terminal (terminal-to-terminal reuses the view).
+        ClickTab(window, vm.Servers);
+        await Pump(100);
+        Assert.Null(FocusedSession(window));
+        ClickTab(window, second);
+        await Pump(100);
+        Assert.Same(second.Session, FocusedSession(window));
+        ClickTab(window, first);
+        await Pump(100);
+        Assert.Same(first.Session, FocusedSession(window));
+
+        // Typing goes to the focused tab's server.
+        window.KeyTextInput("echo typed-into-first");
+        window.KeyPress(Key.Enter, RawInputModifiers.None);
+        await WaitUntil(() => ScreenContainsLine(first.Session, "typed-into-first"), "typed text echoed");
+        Assert.False(ScreenContainsLine(second.Session, "typed-into-first"));
+
+        // Keyboard shortcuts, pressed while a terminal has focus.
+        window.KeyPress(Key.Tab, RawInputModifiers.Control);
+        await Pump(100);
+        Assert.Same(second, vm.SelectedTab);
+        Assert.Same(second.Session, FocusedSession(window));
+        window.KeyPress(Key.Tab, RawInputModifiers.Control);
+        await Pump(100);
+        Assert.Same(vm.Servers, vm.SelectedTab); // wraps around
+        window.KeyPress(Key.PageUp, RawInputModifiers.Control);
+        await Pump(100);
+        Assert.Same(second, vm.SelectedTab);
+        window.KeyPress(Key.D2, RawInputModifiers.Alt);
+        await Pump(100);
+        Assert.Same(first, vm.SelectedTab);
+        Assert.Same(first.Session, FocusedSession(window));
+        window.KeyPress(Key.D9, RawInputModifiers.Alt);
+        await Pump(100);
+        Assert.Same(second, vm.SelectedTab);
+
+        window.KeyPress(Key.L, RawInputModifiers.Control | RawInputModifiers.Shift);
+        await Pump(100);
+        Assert.True(vm.IsLocked);
+
+        foreach (var tab in new[] { first, second })
+            tab.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
+    private static void ClickTab(Window window, TabViewModel tab)
+    {
+        var item = window.GetVisualDescendants().OfType<TabItem>().Single(t => ReferenceEquals(t.DataContext, tab));
+        var center = item.TranslatePoint(new Point(item.Bounds.Width / 2, item.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseUp(center, MouseButton.Left);
+    }
+
+    private static SshSession? FocusedSession(Window window) =>
+        (window.FocusManager?.GetFocusedElement() as TerminalControl)?.Session;
+
+    private static bool ScreenContainsLine(SshSession session, string text)
+    {
+        lock (session.Emulator.SyncRoot)
+        {
+            var buffer = session.Emulator.Terminal.Buffer;
+            for (var i = 0; i < buffer.Lines.Length; i++)
+                if (buffer.TranslateBufferLineToString(i, true, 0, -1).ToString()!.Trim() == text)
+                    return true;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ helpers
