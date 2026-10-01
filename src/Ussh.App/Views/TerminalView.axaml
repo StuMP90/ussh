@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Ussh.App.ViewModels"
+             xmlns:controls="using:Ussh.App.Controls"
+             x:Class="Ussh.App.Views.TerminalView"
+             x:DataType="vm:TerminalTabViewModel">
+  <DockPanel>
+    <!-- Status bar -->
+    <Border DockPanel.Dock="Bottom" Padding="10,4" Background="#10FFFFFF">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+          <Button Content="Reconnect" Command="{Binding ReconnectCommand}" Padding="8,2" FontSize="12" />
+          <Button Content="Disconnect" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsConnected}" Padding="8,2" FontSize="12" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Endpoint}" FontSize="12" />
+          <TextBlock Text="{Binding StatusMessage}" FontSize="12" Classes="muted" />
+          <TextBlock Text="{Binding Uptime}" FontSize="12" Classes="muted" />
+          <TextBlock Text="{Binding TunnelSummary}" FontSize="12" Classes="muted" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- Connection problem banner -->
+    <Border DockPanel.Dock="Top" Padding="12,8" Background="#40E0B040" IsVisible="{Binding ShowBanner}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Reconnect now" Command="{Binding ReconnectCommand}"
+                IsVisible="{Binding CanReconnect}" />
+        <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" TextWrapping="Wrap" />
+      </DockPanel>
+    </Border>
+
+    <controls:TerminalControl x:Name="Terminal"
+                              Session="{Binding Session}"
+                              FontFamily="{Binding FontFamily}"
+                              FontSize="{Binding FontSize}" />
+  </DockPanel>
+</UserControl>

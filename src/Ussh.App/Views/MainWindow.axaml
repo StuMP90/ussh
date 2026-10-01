@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Ussh.App.ViewModels"
+        xmlns:views="using:Ussh.App.Views"
+        x:Class="Ussh.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="ussh"
+        Icon="/Assets/ussh.ico"
+        Width="1280" Height="800"
+        MinWidth="640" MinHeight="400"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:ServersTabViewModel">
+      <views:ServersView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:TerminalTabViewModel">
+      <views:TerminalView />
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <Window.KeyBindings>
+    <KeyBinding Gesture="Ctrl+Shift+L" Command="{Binding LockCommand}" />
+  </Window.KeyBindings>
+
+  <Panel>
+    <DockPanel IsVisible="{Binding !IsLocked}">
+      <Border DockPanel.Dock="Top" Padding="10,6" Background="#10FFFFFF">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="Lock" Command="{Binding LockCommand}"
+                  ToolTip.Tip="Lock ussh (Ctrl+Shift+L). Sessions keep running." />
+          <TextBlock Text="ussh" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+
+      <TabControl ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab}" Padding="0">
+        <TabControl.ItemTemplate>
+          <DataTemplate DataType="vm:TabViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Ellipse Width="8" Height="8" Fill="{Binding Indicator}" IsVisible="{Binding Indicator, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Title}" FontSize="14" VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+              <Button Content="✕" IsVisible="{Binding CanClose}" Command="{Binding CloseTabCommand}"
+                      Padding="4,0" FontSize="11" Background="Transparent" VerticalAlignment="Center"
+                      ToolTip.Tip="Close session" />
+            </StackPanel>
+          </DataTemplate>
+        </TabControl.ItemTemplate>
+      </TabControl>
+    </DockPanel>
+
+    <!-- Admin password: first-run setup and unlock -->
+    <Grid IsVisible="{Binding IsLocked}" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+      <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="28"
+              CornerRadius="8" Background="#10FFFFFF">
+        <StackPanel Spacing="12">
+          <Image Source="/Assets/ussh.png" Width="56" Height="56" HorizontalAlignment="Left" />
+          <TextBlock Classes="h1" Text="{Binding LockTitle}" />
+          <TextBlock Text="{Binding LockPrompt}" TextWrapping="Wrap" Classes="muted" />
+          <TextBox x:Name="PasswordBox" PasswordChar="●" Watermark="Admin password"
+                   Text="{Binding Password}" />
+          <TextBox PasswordChar="●" Watermark="Confirm admin password"
+                   Text="{Binding ConfirmPassword}" IsVisible="{Binding IsSetupRequired}" />
+          <TextBlock Classes="error" Text="{Binding LockError}" IsVisible="{Binding LockError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  Content="{Binding UnlockButtonText}" Command="{Binding UnlockCommand}" IsDefault="True" />
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
+          <TextBlock Classes="muted" Text="{Binding LiveSessionNote}" IsVisible="{Binding LiveSessionNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Panel>
+</Window>

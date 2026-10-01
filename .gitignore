@@ -1,0 +1,10 @@
+bin/
+obj/
+artifacts/
+*.user
+.vs/
+.idea/
+*.msix
+*.msixupload
+*.appx
+packaging/msix/layout/

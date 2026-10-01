@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Company>Stuart Millington</Company>
+    <Product>ussh</Product>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

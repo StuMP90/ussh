@@ -1,0 +1,191 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Ussh.App.ViewModels"
+             x:Class="Ussh.App.Views.ServersView"
+             x:DataType="vm:ServersTabViewModel">
+  <Grid ColumnDefinitions="320,Auto,*">
+
+    <!-- Server list -->
+    <DockPanel Grid.Column="0" Margin="12">
+      <TextBox DockPanel.Dock="Top" Watermark="Search servers" Text="{Binding Filter}" Margin="0,0,0,8" />
+      <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,8,0,0">
+        <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                Content="Connect" Command="{Binding ConnectCommand}" />
+        <UniformGrid Columns="3" ColumnSpacing="6">
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Add" Command="{Binding AddServerCommand}" />
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Duplicate" Command="{Binding DuplicateServerCommand}" />
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Delete" Command="{Binding DeleteServerCommand}" />
+        </UniformGrid>
+        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Settings" Command="{Binding ShowSettingsCommand}" />
+      </StackPanel>
+      <ListBox x:Name="ServerList" ItemsSource="{Binding FilteredServers}" SelectedItem="{Binding SelectedServer}"
+               DoubleTapped="OnServerDoubleTapped">
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="vm:ServerItemViewModel">
+            <StackPanel Spacing="2" Margin="0,2">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Group}" IsVisible="{Binding HasGroup}" FontSize="11" Classes="muted" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+              </DockPanel>
+              <TextBlock Text="{Binding Address}" FontSize="12" Classes="muted" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding TunnelBadge}" FontSize="11" Classes="muted" IsVisible="{Binding TunnelBadge, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <Border Grid.Column="1" Width="1" Background="#20FFFFFF" />
+
+    <!-- Empty state -->
+    <StackPanel Grid.Column="2" IsVisible="{Binding ShowEmptyHint}" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+      <TextBlock Classes="h1" Text="Server management" HorizontalAlignment="Center" />
+      <TextBlock Classes="muted" Text="Select a server to edit it, double-click to connect, or Add a new one." HorizontalAlignment="Center" />
+    </StackPanel>
+
+    <!-- Server editor -->
+    <ScrollViewer Grid.Column="2" IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <StackPanel Margin="24,16" MaxWidth="820" HorizontalAlignment="Left" Spacing="6" DataContext="{Binding Editor}" x:DataType="vm:ServerEditorViewModel">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="Unsaved changes" Classes="muted" VerticalAlignment="Center" IsVisible="{Binding IsDirty}" />
+            <Button Content="Revert" Command="{Binding $parent[UserControl].((vm:ServersTabViewModel)DataContext).RevertServerCommand}" IsEnabled="{Binding IsDirty}" />
+            <Button Classes="accent" Content="Save" Command="{Binding $parent[UserControl].((vm:ServersTabViewModel)DataContext).SaveServerCommand}" HotKey="Ctrl+S" />
+          </StackPanel>
+          <TextBlock Classes="h1" Text="{Binding Heading}" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+        <TextBlock Classes="error" Text="{Binding ValidationError}" IsVisible="{Binding ValidationError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <TextBlock Classes="h2" Text="Connection" />
+        <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+          <TextBlock Classes="label" Grid.Row="0" Text="Name" />
+          <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name}" Watermark="e.g. Production web 1" />
+          <TextBlock Classes="label" Grid.Row="1" Text="Group" />
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Group}" Watermark="Optional, e.g. Production" />
+          <TextBlock Classes="label" Grid.Row="2" Text="Host" />
+          <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,120" ColumnSpacing="8">
+            <TextBox Text="{Binding Host}" Watermark="hostname or IP address" />
+            <TextBlock Grid.Column="1" Classes="label" Text="Port" Margin="0" />
+            <NumericUpDown Grid.Column="2" Value="{Binding Port}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
+          </Grid>
+          <TextBlock Classes="label" Grid.Row="3" Text="Username" />
+          <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Username}" />
+          <TextBlock Classes="label" Grid.Row="4" Text="Authentication" />
+          <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding AuthMethods}" SelectedIndex="{Binding AuthMethodIndex}" MinWidth="200" />
+        </Grid>
+
+        <Grid ColumnDefinitions="160,*" IsVisible="{Binding IsPasswordAuth}" Margin="0,8,0,0">
+          <TextBlock Classes="label" Text="Password" />
+          <TextBox Grid.Column="1" PasswordChar="●" Text="{Binding Password}" Watermark="Stored encrypted in the vault" />
+        </Grid>
+
+        <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" RowSpacing="8" IsVisible="{Binding IsKeyAuth}" Margin="0,8,0,0">
+          <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="Private key" />
+            <Button Content="Import file…" Command="{Binding ImportKeyCommand}" FontSize="12" />
+          </StackPanel>
+          <TextBox Grid.Column="1" Text="{Binding PrivateKey}" AcceptsReturn="True" TextWrapping="NoWrap"
+                   Height="120" FontFamily="Cascadia Mono, DejaVu Sans Mono, Consolas, monospace" FontSize="11"
+                   Watermark="-----BEGIN OPENSSH PRIVATE KEY----- …" />
+          <TextBlock Classes="label" Grid.Row="1" Text="Key passphrase" />
+          <TextBox Grid.Row="1" Grid.Column="1" PasswordChar="●" Text="{Binding PrivateKeyPassphrase}" Watermark="Leave empty if the key isn't encrypted" />
+        </Grid>
+
+        <TextBlock Classes="h2" Text="Host key" />
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="Forget" Command="{Binding ForgetHostKeyCommand}" IsVisible="{Binding HasHostKey}"
+                  ToolTip.Tip="You'll be asked to verify the key again on next connect." />
+          <SelectableTextBlock Text="{Binding HostKeyDisplay}" VerticalAlignment="Center" FontFamily="Cascadia Mono, DejaVu Sans Mono, Consolas, monospace" FontSize="12" />
+        </DockPanel>
+
+        <TextBlock Classes="h2" Text="Stability" />
+        <Grid ColumnDefinitions="160,140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+          <TextBlock Classes="label" Text="Keepalive (seconds)" />
+          <NumericUpDown Grid.Column="1" Value="{Binding KeepAliveSeconds}" Minimum="0" Maximum="600" Increment="5" FormatString="0" />
+          <TextBlock Grid.Column="2" Classes="muted" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                     Text="Keeps idle sessions alive through NAT and firewalls. 0 disables (not recommended)." />
+          <TextBlock Classes="label" Grid.Row="1" Text="Connect timeout (s)" />
+          <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding ConnectTimeoutSeconds}" Minimum="3" Maximum="120" Increment="1" FormatString="0" />
+          <TextBlock Classes="label" Grid.Row="2" Text="Auto-reconnect" />
+          <CheckBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" IsChecked="{Binding AutoReconnect}"
+                    Content="Reconnect automatically if the connection drops" />
+        </Grid>
+
+        <TextBlock Classes="h2" Text="Terminal" />
+        <Grid ColumnDefinitions="160,200,Auto,140" ColumnSpacing="0">
+          <TextBlock Classes="label" Text="Terminal type" />
+          <TextBox Grid.Column="1" Text="{Binding TerminalType}" />
+          <TextBlock Grid.Column="2" Classes="label" Text="Scrollback lines" Margin="16,0,12,0" />
+          <NumericUpDown Grid.Column="3" Value="{Binding ScrollbackLines}" Minimum="100" Maximum="200000" Increment="1000" FormatString="0" />
+        </Grid>
+
+        <DockPanel Margin="0,12,0,4">
+          <Button DockPanel.Dock="Right" Content="Add tunnel" Command="{Binding AddTunnelCommand}" />
+          <TextBlock Classes="h2" Text="Tunnels (port forwarding)" Margin="0" VerticalAlignment="Center" />
+        </DockPanel>
+        <TextBlock Classes="muted" Text="Started each time this server connects. A tunnel that can't start (e.g. port in use) is reported but doesn't affect the terminal."
+                   TextWrapping="Wrap" FontSize="12" />
+        <ItemsControl ItemsSource="{Binding Tunnels}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:TunnelEditorViewModel">
+              <Border Padding="10" Margin="0,6,0,0" CornerRadius="6" Background="#0CFFFFFF">
+                <StackPanel Spacing="6">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <CheckBox IsChecked="{Binding Enabled}" VerticalAlignment="Center" ToolTip.Tip="Enabled" />
+                    <ComboBox ItemsSource="{Binding Types}" SelectedIndex="{Binding TypeIndex}" Width="180" />
+                    <TextBox Text="{Binding BindAddress}" Width="130" Watermark="listen address" ToolTip.Tip="Listen address" />
+                    <NumericUpDown Value="{Binding BindPort}" Minimum="0" Maximum="65535" FormatString="0" Width="120" ToolTip.Tip="Listen port" />
+                    <TextBlock Text="→" VerticalAlignment="Center" IsVisible="{Binding HasDestination}" />
+                    <TextBox Text="{Binding DestinationHost}" Width="150" Watermark="destination host" IsVisible="{Binding HasDestination}" />
+                    <NumericUpDown Value="{Binding DestinationPort}" Minimum="0" Maximum="65535" FormatString="0" Width="120" IsVisible="{Binding HasDestination}" ToolTip.Tip="Destination port" />
+                    <Button Content="Remove" Command="{Binding RemoveCommand}" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding Explanation}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Classes="h2" Text="Notes" />
+        <TextBox Text="{Binding Notes}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Settings -->
+    <ScrollViewer Grid.Column="2" IsVisible="{Binding IsSettingsVisible}">
+      <StackPanel Margin="24,16" MaxWidth="640" HorizontalAlignment="Left" Spacing="8">
+        <TextBlock Classes="h1" Text="Settings" />
+        <TextBlock Classes="error" Text="{Binding SettingsMessage}" IsVisible="{Binding SettingsMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <TextBlock Classes="h2" Text="Security" />
+        <Grid ColumnDefinitions="180,140,*">
+          <TextBlock Classes="label" Text="Auto-lock after (min)" />
+          <NumericUpDown Grid.Column="1" Value="{Binding AutoLockMinutes}" Minimum="0" Maximum="1440" FormatString="0" />
+          <TextBlock Grid.Column="2" Classes="muted" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                     Text="0 = never. Locking hides the app; sessions keep running." />
+        </Grid>
+
+        <TextBlock Classes="h2" Text="Terminal" />
+        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto" RowSpacing="8">
+          <TextBlock Classes="label" Text="Font family" />
+          <TextBox Grid.Column="1" Text="{Binding FontFamily}" />
+          <TextBlock Classes="label" Grid.Row="1" Text="Font size" />
+          <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding FontSize}" Minimum="6" Maximum="48" Increment="0.5" FormatString="0.#" Width="140" HorizontalAlignment="Left" />
+        </Grid>
+        <Button Classes="accent" Content="Save settings" Command="{Binding SaveSettingsCommand}" Margin="0,8,0,0" />
+
+        <TextBlock Classes="h2" Text="Change admin password" />
+        <TextBox PasswordChar="●" Watermark="Current password" Text="{Binding CurrentPassword}" />
+        <TextBox PasswordChar="●" Watermark="New password" Text="{Binding NewPassword}" />
+        <TextBox PasswordChar="●" Watermark="Confirm new password" Text="{Binding ConfirmNewPassword}" />
+        <Button Content="Change password" Command="{Binding ChangePasswordCommand}" />
+
+        <TextBlock Classes="h2" Text="Data" />
+        <SelectableTextBlock Text="{Binding VaultLocation}" Classes="muted" FontSize="12" />
+        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                   Text="The vault is AES-256-GCM encrypted with a key derived from the admin password (PBKDF2-SHA256, 600,000 iterations). Back this file up; without the admin password it cannot be recovered." />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

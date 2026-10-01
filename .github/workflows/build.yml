@@ -1,0 +1,61 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "MSIX version (x.y.z.0)"
+        default: "0.1.0.0"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Install SSH test server dependency
+        run: pip install paramiko
+      - run: dotnet test --configuration Release
+
+  linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: packaging/publish-linux.sh 0.1.0 x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ussh-linux-x64
+          path: artifacts/linux/*.tar.gz
+
+  msix:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      # Unsigned: for Store submission (the Store signs it). Set the identity values from
+      # Partner Center as repository variables before submitting.
+      - name: Build MSIX
+        shell: pwsh
+        run: >
+          ./packaging/build-msix.ps1
+          -Version "${{ github.event.inputs.version || '0.1.0.0' }}"
+          -Architecture x64,arm64
+          -IdentityName "${{ vars.MSIX_IDENTITY_NAME || 'ussh.dev' }}"
+          -Publisher "${{ vars.MSIX_PUBLISHER || 'CN=ussh-dev' }}"
+          -PublisherDisplayName "${{ vars.MSIX_PUBLISHER_DISPLAY_NAME || 'ussh developer' }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ussh-msix
+          path: artifacts/msix/*.msix

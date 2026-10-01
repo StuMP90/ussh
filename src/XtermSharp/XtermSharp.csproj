@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Vendored from https://github.com/migueldeicaza/XtermSharp (MIT, see LICENSE),
+    commit 1bed529cd20748ef9da43753e8dd553f65fc5582.
+    Local changes are marked with "ussh:" comments. See NOTICE.md.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0168;CS0169;CS0162;CS0219;CS0414;CS0649;CS0067;CS1998;CS8632</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NStack.Core" Version="0.12.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Ussh.Core.Tests" />
+  </ItemGroup>
+</Project>
