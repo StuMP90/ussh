@@ -85,15 +85,36 @@
     <ScrollViewer Grid.Column="2" IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}">
       <StackPanel Margin="24,16" MaxWidth="820" HorizontalAlignment="Left" Spacing="6" DataContext="{Binding Editor}" x:DataType="vm:ServerEditorViewModel">
         <DockPanel>
+          <!-- Viewing: an Edit button. Editing: Cancel / Save. -->
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="View only" Classes="muted" VerticalAlignment="Center" IsVisible="{Binding !IsEditing}" />
+            <Button Classes="accent" Content="Edit" IsVisible="{Binding !IsEditing}"
+                    Command="{Binding $parent[UserControl].((vm:ServersTabViewModel)DataContext).EditServerCommand}"
+                    ToolTip.Tip="Change this server's settings" />
             <TextBlock Text="Unsaved changes" Classes="muted" VerticalAlignment="Center" IsVisible="{Binding IsDirty}" />
-            <Button Content="Revert" Command="{Binding $parent[UserControl].((vm:ServersTabViewModel)DataContext).RevertServerCommand}" IsEnabled="{Binding IsDirty}" />
-            <Button Classes="accent" Content="Save" Command="{Binding $parent[UserControl].((vm:ServersTabViewModel)DataContext).SaveServerCommand}" HotKey="Ctrl+S" />
+            <Button Content="Cancel" IsVisible="{Binding IsEditing}"
+                    Command="{Binding $parent[UserControl].((vm:ServersTabViewModel)DataContext).RevertServerCommand}"
+                    ToolTip.Tip="Discard changes" />
+            <Button Classes="accent" Content="Save" IsVisible="{Binding IsEditing}"
+                    Command="{Binding $parent[UserControl].((vm:ServersTabViewModel)DataContext).SaveServerCommand}" HotKey="Ctrl+S" />
           </StackPanel>
           <TextBlock Classes="h1" Text="{Binding Heading}" TextTrimming="CharacterEllipsis" />
         </DockPanel>
         <TextBlock Classes="error" Text="{Binding ValidationError}" IsVisible="{Binding ValidationError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
+        <!-- The form: read-only (but readable) until Edit is pressed. -->
+        <StackPanel Spacing="6" IsEnabled="{Binding IsEditing}">
+          <StackPanel.Resources>
+            <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#0CFFFFFF" />
+            <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#20FFFFFF" />
+            <SolidColorBrush x:Key="TextControlPlaceholderForegroundDisabled" Color="#60FFFFFF" />
+            <SolidColorBrush x:Key="ComboBoxForegroundDisabled" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="#0CFFFFFF" />
+            <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled" Color="#20FFFFFF" />
+            <SolidColorBrush x:Key="CheckBoxForegroundUncheckedDisabled" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="CheckBoxForegroundCheckedDisabled" Color="#E6FFFFFF" />
+          </StackPanel.Resources>
         <TextBlock Classes="h2" Text="Connection" />
         <Grid ColumnDefinitions="160,*" Margin="0,0,0,8">
           <TextBlock Classes="label" Text="Type" />
@@ -112,7 +133,12 @@
             <TextBlock Classes="label" Grid.Row="0" Text="Bucket" />
             <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding S3Bucket}" Watermark="Leave empty to browse all buckets the keys can see" />
             <TextBlock Classes="label" Grid.Row="1" Text="Region" />
-            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding S3Region}" Watermark="e.g. eu-west-2 (buckets in other regions are found automatically)" />
+            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+              <ComboBox ItemsSource="{Binding RegionOptions}" SelectedItem="{Binding SelectedRegion}" HorizontalAlignment="Stretch"
+                        MaxDropDownHeight="420" ToolTip.Tip="Where the bucket lives. With all buckets, others are found automatically." />
+              <TextBox Text="{Binding CustomRegion}" IsVisible="{Binding IsCustomRegion}"
+                       Watermark="Region code, e.g. eu-west-2 (Cloudflare R2: auto)" />
+            </StackPanel>
             <TextBlock Classes="label" Grid.Row="2" Text="Start in folder" />
             <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding S3Prefix}" Watermark="Optional, e.g. backups/2026 (with no bucket set: my-bucket/backups)" />
             <TextBlock Classes="label" Grid.Row="3" Text="Access key ID" />
@@ -248,6 +274,7 @@
 
         <TextBlock Classes="h2" Text="Notes" />
         <TextBox Text="{Binding Notes}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" />
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
 

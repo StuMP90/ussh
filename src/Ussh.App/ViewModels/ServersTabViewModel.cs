@@ -285,10 +285,18 @@ public sealed partial class ServersTabViewModel : TabViewModel
     [RelayCommand]
     private void RevertServer()
     {
+        // "Cancel": drop any changes and go back to the read-only view.
         if (SelectedServer != null)
             Editor = NewEditor(SelectedServer.Profile.Clone(), isNew: false);
         else
             Editor = null;
+    }
+
+    [RelayCommand]
+    private void EditServer()
+    {
+        if (Editor != null)
+            Editor.IsEditing = true;
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]

@@ -222,8 +222,8 @@ public sealed class SftpTests : IDisposable
         var item = Assert.Single(queue.Items);
         await WaitUntil(() => item.TransferredBytes > 10_000_000 || item.IsFinished, "upload under way");
         Assert.False(item.IsFinished, "file uploaded too quickly to interrupt");
-        server.Stop(); // connection drops mid-file
-        await Task.Delay(1500);
+        server.Stop(); // connection drops mid-file…
+        await Task.Delay(4000); // …and stays down long enough that the first reconnect is refused
         server.Start();
         await WaitForQueue(queue, TimeSpan.FromSeconds(120));
 
@@ -246,7 +246,7 @@ public sealed class SftpTests : IDisposable
         await WaitUntil(() => item.TransferredBytes > 10_000_000 || item.IsFinished, "download under way");
         Assert.False(item.IsFinished, "file downloaded too quickly to interrupt");
         server.Stop();
-        await Task.Delay(1500);
+        await Task.Delay(4000); // long enough that the first reconnect is refused
         server.Start();
         await WaitForQueue(queue, TimeSpan.FromSeconds(120));
 

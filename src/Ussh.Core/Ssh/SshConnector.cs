@@ -104,11 +104,24 @@ public sealed class SshConnector
             }
             catch (Exception ex)
             {
-                throw new FileConnectionException(Describe(ex), ex);
+                // Temporary trouble (refused while a server restarts, timeouts, network down) is an
+                // IOException so transfers retry with backoff; anything else (credentials, keys,
+                // configuration) is a FileConnectionException and isn't retried.
+                throw IsTemporary(ex) ? new IOException(Describe(ex), ex) : new FileConnectionException(Describe(ex), ex);
             }
         }
         throw new FileConnectionException($"Could not verify the host keys for {target.DisplayName}.");
     }
+
+    /// <summary>True for failures that may clear up by themselves, so retrying makes sense.</summary>
+    public static bool IsTemporary(Exception ex) => ex switch
+    {
+        JumpHostException jump => IsTemporary(jump.InnerException!),
+        SshAuthenticationException or SessionConfigurationException or FileConnectionException => false,
+        System.Net.Sockets.SocketException or SshConnectionException or SshOperationTimeoutException
+            or TimeoutException or OperationCanceledException or IOException => true,
+        _ => false,
+    };
 
     /// <summary>A short, user-facing description of a connection failure.</summary>
     public static string Describe(Exception ex) => ex switch

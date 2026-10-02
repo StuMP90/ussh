@@ -84,6 +84,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         : "Enter the admin password to manage servers and open connections.";
 
     public string AppVersion => AppInfo.DisplayVersion;
+    public string AppVersionNumber => AppInfo.Version;
 
     public string UnlockButtonText => IsSetupRequired ? "Create vault" : "Unlock";
 
@@ -360,10 +361,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (running > 0 && !await _dialogs.ConfirmAsync("Close file browser",
                 $"{running} transfer(s) are still running. Cancel them and close?", "Cancel transfers and close", danger: true))
             return;
-        var index = Tabs.IndexOf(tab);
-        Tabs.Remove(tab);
-        if (SelectedTab == null || SelectedTab == tab)
-            SelectedTab = Tabs.Count > 0 ? Tabs[Math.Clamp(index - 1, 0, Tabs.Count - 1)] : null;
+        RemoveTab(tab);
         await tab.ShutdownAsync();
         OnTransfersChanged();
     }
@@ -416,7 +414,42 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnCombineChanged();
     }
 
-    partial void OnSelectedTabChanged(TabViewModel? value) => OnCombineChanged();
+    partial void OnSelectedTabChanged(TabViewModel? value)
+    {
+        if (value != null && !_closingTab)
+        {
+            _tabHistory.Remove(value);
+            _tabHistory.Add(value);
+        }
+        OnCombineChanged();
+    }
+
+    // Tabs in the order they were last used, most recent last (for "back to the previous tab").
+    private readonly List<TabViewModel> _tabHistory = new();
+    private bool _closingTab;
+
+    /// <summary>
+    /// Removes a tab and, if it was showing, goes back to the tab used before it (not just its
+    /// neighbour, which was often the Servers tab).
+    /// </summary>
+    private void RemoveTab(TabViewModel tab)
+    {
+        var wasSelected = SelectedTab == tab || SelectedTab == null;
+        _tabHistory.Remove(tab);
+        var previous = _tabHistory.LastOrDefault(t => Tabs.Contains(t) && t != tab);
+        var index = Tabs.IndexOf(tab);
+        _closingTab = true;
+        try
+        {
+            Tabs.Remove(tab);
+        }
+        finally
+        {
+            _closingTab = false;
+        }
+        if (wasSelected || SelectedTab == null || !Tabs.Contains(SelectedTab))
+            SelectedTab = previous ?? (Tabs.Count > 0 ? Tabs[Math.Clamp(index - 1, 0, Tabs.Count - 1)] : null);
+    }
 
     private void OnCombineChanged()
     {
@@ -506,10 +539,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 connected == 1 ? $"Disconnect from {tab.Title}?" : $"Disconnect all {connected} sessions in this tab?", "Disconnect"))
             return;
 
-        var index = Tabs.IndexOf(tab);
-        Tabs.Remove(tab);
-        if (SelectedTab == null || SelectedTab == tab)
-            SelectedTab = Tabs.Count > 0 ? Tabs[Math.Clamp(index - 1, 0, Tabs.Count - 1)] : null;
+        RemoveTab(tab);
         tab.Detach();
         OnCombineChanged();
         await Task.WhenAll(tab.Panes.Select(p => _sessions.CloseAsync(p.Session)));

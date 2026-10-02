@@ -27,7 +27,10 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
   automatically and **resume where they stopped** (SFTP offsets, S3 multipart uploads and
   ranged downloads) rather than starting again. Browsing and transfers use separate
   connections, so a big transfer never stalls browsing or any terminal.
-- **Server management**: add, edit, duplicate, delete, group and search servers. Password or
+- **Server management**: add, edit, duplicate, delete, group and search servers. Clicking a
+  server shows its settings read-only; press **Edit** to change them, so connecting can't
+  alter a server by accident. S3 regions are picked from a list (Europe, then the USA, then
+  the rest of the world), with *Other* for anything else. Password or
   private-key authentication: OpenSSH, PEM and PuTTY `.ppk` (v2 and v3) keys, with an
   optional passphrase.
 - **Admin password**: all server configuration, including passwords and keys, lives in one
@@ -231,8 +234,11 @@ The tarball is self-contained and includes an `install.sh` (installs to `~/.loca
 
 ## Keyboard
 
+The same list is in the app: **Help** in the top bar, or **Ctrl+Shift+H**.
+
 | Keys | Action |
 |---|---|
+| Ctrl+Shift+H | Help (shortcuts and how things work) |
 | Ctrl+Tab / Ctrl+PageDown | Next tab |
 | Ctrl+Shift+Tab / Ctrl+PageUp | Previous tab |
 | Alt+1 … Alt+8 / Alt+9 | Go to tab 1–8 / last tab |

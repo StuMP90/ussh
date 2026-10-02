@@ -33,13 +33,37 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      # A clean virtualenv, so the runner's system Python packages can't clash with the test tools.
+      # Its python3 comes first on PATH (the SSH test server runs "python3").
       - name: Install test dependencies (SSH/SFTP test server, S3 emulator, PuTTY key tests)
         run: |
-          pip install paramiko "moto[server]"
+          python3 -m venv "$RUNNER_TEMP/testenv"
+          "$RUNNER_TEMP/testenv/bin/pip" install --quiet paramiko "moto[server]"
+          echo "$RUNNER_TEMP/testenv/bin" >> "$GITHUB_PATH"
+          echo "USSH_MOTO_SERVER=$RUNNER_TEMP/testenv/bin/moto_server" >> "$GITHUB_ENV"
           sudo apt-get update && sudo apt-get install -y putty-tools
-          moto="$(command -v moto_server)" || { echo "::error::moto_server not found after install"; exit 1; }
-          echo "USSH_MOTO_SERVER=$moto" >> "$GITHUB_ENV"
-      - run: dotnet test --configuration Release
+      - name: Check the S3 emulator starts
+        run: |
+          "$USSH_MOTO_SERVER" -H 127.0.0.1 -p 5999 > moto.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://127.0.0.1:5999; then echo "moto_server is up"; kill "$pid"; exit 0; fi
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+          done
+          echo "::error::moto_server didn't start"; cat moto.log; exit 1
+      - name: Run tests
+        run: dotnet test --configuration Release --logger "trx;LogFilePrefix=results" --results-directory TestResults
+      # On failure: each failing test appears in the run's Annotations panel and summary.
+      - name: Report failed tests
+        if: failure()
+        run: python3 .github/scripts/test-report.py TestResults
+      - name: Keep test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: TestResults
 
   linux:
     needs: [version, test]

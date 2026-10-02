@@ -61,6 +61,7 @@ public partial class MainWindow : Window
     ///   Ctrl+Shift+Tab / Ctrl+PageUp     previous tab
     ///   Alt+1..8                         tab 1..8 (Alt+9 = last tab)
     ///   Ctrl+Shift+L                     lock
+    ///   Ctrl+Shift+H                     help
     ///   Ctrl+Shift+E / Ctrl+Shift+O      split the focused pane right / down (same server)
     ///   Ctrl+Shift+W                     close the focused pane (or the tab, if it's the last)
     ///   Ctrl+Shift+B                     toggle broadcast input
@@ -69,10 +70,16 @@ public partial class MainWindow : Window
     private void OnShortcutKeyDown(object? sender, KeyEventArgs e)
     {
         var vm = ViewModel;
-        if (vm == null || vm.IsLocked)
-            return;
         var mods = e.KeyModifiers;
         const KeyModifiers ctrlShift = KeyModifiers.Control | KeyModifiers.Shift;
+        if (mods == ctrlShift && e.Key == Key.H)
+        {
+            ShowHelp();
+            e.Handled = true;
+            return;
+        }
+        if (vm == null || vm.IsLocked)
+            return;
 
         if ((mods == KeyModifiers.Control && e.Key is Key.Tab or Key.PageDown))
             vm.SelectRelativeTab(1);
@@ -153,6 +160,10 @@ public partial class MainWindow : Window
     private void OnTabSelectionChanged(object? sender, SelectionChangedEventArgs e) => FocusSelectedTerminal();
 
     private void OnClearMarksClick(object? sender, RoutedEventArgs e) => ViewModel?.ClearMarks();
+
+    private void OnHelpClick(object? sender, RoutedEventArgs e) => ShowHelp();
+
+    private void ShowHelp() => _ = new HelpWindow().ShowDialog(this);
 
     private static TabItem? TabItemAt(object? source) =>
         (source as Visual)?.GetSelfAndVisualAncestors().OfType<TabItem>().FirstOrDefault();

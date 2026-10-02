@@ -44,7 +44,12 @@
                     ToolTip.Tip="Join the selected and Ctrl+clicked tabs side by side. Sessions stay connected." />
             <Button Content="Cancel" Click="OnClearMarksClick" />
           </StackPanel>
-          <TextBlock Text="uSSH" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <Button DockPanel.Dock="Right" Content="Help" Click="OnHelpClick" Margin="0,0,8,0"
+                  ToolTip.Tip="Keyboard shortcuts and how things work (Ctrl+Shift+H)" />
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="uSSH" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding AppVersionNumber}" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
         </DockPanel>
       </Border>
 

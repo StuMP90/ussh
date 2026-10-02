@@ -21,7 +21,9 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         ShellExitOptions = shellExitOptions;
         _selectedKind = ServerKindOption.All.First(o => o.Kind == profile.Kind);
         _s3Bucket = profile.S3Bucket;
-        _s3Region = profile.S3Region;
+        _selectedRegion = RegionOption.All.FirstOrDefault(r => !r.IsOther && r.Code == profile.S3Region.Trim()) ?? RegionOption.Other;
+        _customRegion = _selectedRegion.IsOther ? profile.S3Region.Trim() : "";
+        _isEditing = isNew;
         _s3Prefix = profile.S3Prefix;
         _s3AccessKeyId = profile.S3AccessKeyId ?? "";
         _s3SecretAccessKey = profile.S3SecretAccessKey ?? "";
@@ -94,7 +96,39 @@ public sealed partial class ServerEditorViewModel : ObservableObject
 
     // ---- Amazon S3 ----
     [ObservableProperty] private string _s3Bucket;
-    [ObservableProperty] private string _s3Region;
+    public IReadOnlyList<RegionOption> RegionOptions => RegionOption.All;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCustomRegion))]
+    private RegionOption _selectedRegion;
+
+    partial void OnSelectedRegionChanged(RegionOption? oldValue, RegionOption newValue)
+    {
+        if (newValue == null && oldValue != null)
+            SelectedRegion = oldValue;
+    }
+
+    [ObservableProperty] private string _customRegion;
+
+    public bool IsCustomRegion => SelectedRegion?.IsOther == true;
+
+    /// <summary>The region code: the picked region, or the typed one for "Other".</summary>
+    public string S3Region
+    {
+        get => IsCustomRegion ? CustomRegion : SelectedRegion?.Code ?? "";
+        set
+        {
+            var match = RegionOption.All.FirstOrDefault(r => !r.IsOther && r.Code == value.Trim());
+            SelectedRegion = match ?? RegionOption.Other;
+            CustomRegion = match == null ? value.Trim() : "";
+        }
+    }
+
+    /// <summary>
+    /// Read-only until Edit is pressed (new servers start in edit mode), so clicking a server to
+    /// connect can't change its settings by accident.
+    /// </summary>
+    [ObservableProperty] private bool _isEditing;
     [ObservableProperty] private string _s3Prefix;
     [ObservableProperty] private string _s3AccessKeyId;
     [ObservableProperty] private string _s3SecretAccessKey;
@@ -180,7 +214,8 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     {
         if (e.PropertyName is nameof(IsDirty) or nameof(ValidationError) or nameof(Heading)
             or nameof(IsPasswordAuth) or nameof(IsKeyAuth) or nameof(HostKeyDisplay) or nameof(HasHostKey)
-            or nameof(ShowStoredPassphrase) or nameof(Kind) or nameof(ShowSshFields) or nameof(ShowTerminalFields) or nameof(ShowS3Fields))
+            or nameof(ShowStoredPassphrase) or nameof(Kind) or nameof(ShowSshFields) or nameof(ShowTerminalFields) or nameof(ShowS3Fields)
+            or nameof(IsEditing) or nameof(IsCustomRegion))
             return;
         UpdateDirty();
         if (e.PropertyName is nameof(Name) or nameof(Host) or nameof(Username))
@@ -211,6 +246,7 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     public void MarkSaved()
     {
         IsNew = false;
+        IsEditing = false;
         _savedState = Snapshot();
         IsDirty = false;
         OnPropertyChanged(nameof(Heading));
@@ -262,7 +298,7 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         if (bucket.Contains('/') || bucket.Any(char.IsWhiteSpace))
             return "Enter just the bucket name (put any folder in \"Start in folder\").";
         if (S3ServiceUrl.Trim().Length == 0 && S3Region.Trim().Length == 0)
-            return "Region is required (e.g. eu-west-2).";
+            return "Choose a region, or type one under \"Other\" (e.g. eu-west-2).";
         if (S3ServiceUrl.Trim().Length > 0 && !Uri.TryCreate(S3ServiceUrl.Trim(), UriKind.Absolute, out _))
             return "Endpoint must be a full URL, e.g. https://s3.example.com.";
         if (S3AccessKeyId.Trim().Length == 0 || S3SecretAccessKey.Length == 0)

@@ -818,6 +818,138 @@ public sealed class UiTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task ServersAreReadOnlyUntilEditIsPressed()
+    {
+        var (window, vm, _) = Create();
+        await CreateVault(vm);
+        vm.Servers.AddServerCommand.Execute(null);
+        Assert.True(vm.Servers.Editor!.IsEditing); // new servers start in edit mode
+        (vm.Servers.Editor.Name, vm.Servers.Editor.Host, vm.Servers.Editor.Username) = ("web1", "web1.example", "deploy");
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.False(vm.Servers.Editor.IsEditing); // saving returns to viewing
+
+        // Selecting a server shows it read-only.
+        vm.Servers.SelectedServer = null;
+        vm.Servers.SelectedServer = vm.Servers.FilteredServers.Single();
+        var editor = vm.Servers.Editor!;
+        Assert.False(editor.IsEditing);
+        await Pump(100);
+        Save(window, "22-server-view-mode");
+
+        // Edit, change, Cancel: nothing changes.
+        vm.Servers.EditServerCommand.Execute(null);
+        Assert.True(vm.Servers.Editor!.IsEditing);
+        vm.Servers.Editor.Host = "changed.example";
+        vm.Servers.RevertServerCommand.Execute(null);
+        Assert.False(vm.Servers.Editor!.IsEditing);
+        Assert.Equal("web1.example", vm.Servers.Editor.Host);
+        Assert.Equal("web1.example", vm.Data!.Servers.Single().Host);
+
+        // Edit, change, Save.
+        vm.Servers.EditServerCommand.Execute(null);
+        vm.Servers.Editor!.Host = "web1-new.example";
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.False(vm.Servers.Editor.IsEditing);
+        Assert.Equal("web1-new.example", vm.Data.Servers.Single().Host);
+    }
+
+    [AvaloniaFact]
+    public async Task S3RegionIsPickedFromAListOrTyped()
+    {
+        var (window, vm, _) = Create();
+        await CreateVault(vm);
+        vm.Servers.AddServerCommand.Execute(null);
+        var editor = vm.Servers.Editor!;
+        editor.SelectedKind = editor.KindOptions.Single(k => k.Kind == ServerKind.S3);
+        (editor.S3AccessKeyId, editor.S3SecretAccessKey) = ("AKIAEXAMPLE", "secret");
+
+        // Europe first, then the USA, then the rest of the world; "Other" last.
+        var codes = editor.RegionOptions.Select(r => r.Code).ToList();
+        Assert.StartsWith("eu-", codes[0]);
+        var firstUs = codes.FindIndex(c => c.StartsWith("us-"));
+        Assert.True(codes.Take(firstUs).All(c => c.StartsWith("eu-")));
+        Assert.True(codes.Skip(firstUs).TakeWhile(c => c.StartsWith("us-")).Count() == 4);
+        Assert.True(editor.RegionOptions[^1].IsOther);
+
+        editor.SelectedRegion = editor.RegionOptions.Single(r => r.Code == "eu-west-2");
+        Assert.False(editor.IsCustomRegion);
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Equal("eu-west-2", vm.Data!.Servers.Single().S3Region);
+
+        // A region not in the list (e.g. Cloudflare R2's "auto") via Other.
+        vm.Servers.EditServerCommand.Execute(null);
+        editor = vm.Servers.Editor!;
+        editor.SelectedRegion = RegionOption.Other;
+        Assert.True(editor.IsCustomRegion);
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Contains("Choose a region", editor.ValidationError);
+        editor.CustomRegion = "auto";
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Null(editor.ValidationError);
+        Assert.Equal("auto", vm.Data.Servers.Single().S3Region);
+
+        // Reopened, it shows as Other with the typed code.
+        vm.Servers.SelectedServer = null;
+        vm.Servers.SelectedServer = vm.Servers.FilteredServers.Single();
+        Assert.True(vm.Servers.Editor!.IsCustomRegion);
+        Assert.Equal("auto", vm.Servers.Editor.CustomRegion);
+    }
+
+    [AvaloniaFact]
+    public async Task ClosingATabGoesBackToThePreviousTab()
+    {
+        var server = SshTestServer.TryStart();
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        var profile = AddServer(vm, "box", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        vm.Connect(profile);
+        var a = (TerminalTabViewModel)vm.SelectedTab!;
+        vm.Connect(profile);
+        var b = (TerminalTabViewModel)vm.SelectedTab!;
+        vm.Connect(profile);
+        var c = (TerminalTabViewModel)vm.SelectedTab!;
+        await WaitUntil(() => new[] { a, b, c }.All(t => t.FocusedPane.Session.State == SessionState.Connected), "three tabs");
+
+        // Tabs: Servers, A, B, C. Use A, then C; closing C returns to A (not its neighbour B).
+        vm.SelectedTab = a;
+        vm.SelectedTab = c;
+        c.FocusedPane.Session.Disconnect();
+        await WaitUntil(() => c.FocusedPane.Session.State == SessionState.Disconnected, "c disconnected");
+        await vm.CloseTabAsync(c);
+        Assert.Same(a, vm.SelectedTab);
+
+        // Closing a tab that isn't showing leaves the current tab alone.
+        b.FocusedPane.Session.Disconnect();
+        await WaitUntil(() => b.FocusedPane.Session.State == SessionState.Disconnected, "b disconnected");
+        await vm.CloseTabAsync(b);
+        Assert.Same(a, vm.SelectedTab);
+
+        a.FocusedPane.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task HelpWindowListsShortcuts()
+    {
+        var (window, vm, _) = Create();
+        await CreateVault(vm);
+        await Pump(100);
+        Save(window, "23-header-version");
+        var help = new HelpWindow { Width = 760, Height = 900 };
+        help.Show();
+        await Pump(200);
+        var text = string.Join("\n", help.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+        Assert.Contains("Ctrl+Shift+E", text);
+        Assert.Contains("Overwrite if different", text);
+        Assert.Contains("Ctrl+Shift+H", text);
+        Save(help, "24-help");
+        help.Close();
+    }
+
+    [AvaloniaFact]
     public async Task ServerTypesShowTheRightFieldsAndValidate()
     {
         var (window, vm, _) = Create();

@@ -25,15 +25,16 @@ public sealed class S3TestServer : IDisposable
             return null;
         var server = new S3TestServer();
         var psi = new ProcessStartInfo(Executable) { RedirectStandardOutput = true, RedirectStandardError = true };
-        psi.ArgumentList.Add("-p");
-        psi.ArgumentList.Add(server.Port.ToString());
+        foreach (var arg in new[] { "-H", "127.0.0.1", "-p", server.Port.ToString() })
+            psi.ArgumentList.Add(arg);
+        var output = new System.Collections.Concurrent.ConcurrentQueue<string>();
         server._process = Process.Start(psi)!;
-        server._process.OutputDataReceived += (_, _) => { };
-        server._process.ErrorDataReceived += (_, _) => { };
+        server._process.OutputDataReceived += (_, e) => { if (e.Data != null) output.Enqueue(e.Data); };
+        server._process.ErrorDataReceived += (_, e) => { if (e.Data != null) output.Enqueue(e.Data); };
         server._process.BeginOutputReadLine();
         server._process.BeginErrorReadLine();
-        var deadline = DateTime.UtcNow.AddSeconds(20);
-        while (DateTime.UtcNow < deadline)
+        var deadline = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < deadline && !server._process.HasExited)
         {
             try
             {
@@ -43,11 +44,14 @@ public sealed class S3TestServer : IDisposable
             }
             catch (SocketException)
             {
-                Thread.Sleep(100);
+                Thread.Sleep(200);
             }
         }
+        var exited = server._process.HasExited ? $"exited with code {server._process.ExitCode}" : "still not listening after 60s";
         server.Dispose();
-        throw new InvalidOperationException("moto_server did not start.");
+        Thread.Sleep(200); // let the last output arrive
+        throw new InvalidOperationException(
+            $"moto_server ({Executable}) {exited}. Output:\n" + string.Join("\n", output.TakeLast(40)));
     }
 
     /// <summary>A profile for <paramref name="bucket"/>, creating the bucket.</summary>
