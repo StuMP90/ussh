@@ -13,7 +13,7 @@ public sealed class SftpTests : IDisposable
     private readonly ITestOutputHelper _output;
     private readonly List<IDisposable> _dispose = new();
     private readonly List<IAsyncDisposable> _asyncDispose = new();
-    private readonly string _local = Path.Combine(Path.GetTempPath(), "ussh-sftp-local-" + Guid.NewGuid().ToString("N"));
+    private readonly string _local = Path.Combine(Path.GetTempPath(), "zssh-sftp-local-" + Guid.NewGuid().ToString("N"));
 
     public SftpTests(ITestOutputHelper output)
     {

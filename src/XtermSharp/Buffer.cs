@@ -125,7 +125,7 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
-		/// ussh: returns the line at <paramref name="index"/>, materialising blank lines if the
+		/// zssh: returns the line at <paramref name="index"/>, materialising blank lines if the
 		/// buffer is shorter than the cursor position. Several upstream paths (resize, scroll
 		/// regions, alternate buffer switches) can leave the cursor row unallocated, and Print
 		/// then dereferenced null. Never grows past capacity (that would rotate the ring).
@@ -205,7 +205,7 @@ namespace XtermSharp {
 		/// </summary>
 		public int RestoreCursor ()
 		{
-			// ussh: clamp. The saved position may predate a resize (or come from the other
+			// zssh: clamp. The saved position may predate a resize (or come from the other
 			// buffer's dimensions); restoring it unclamped put the cursor off-screen and the
 			// next printed character dereferenced a null line.
 			X = Math.Max (0, Math.Min (SavedX, Terminal.Cols - 1));
@@ -226,7 +226,7 @@ namespace XtermSharp {
 				lines.Push (GetBlankLine (attr));
 		}
 
-		// ussh: honour TerminalOptions.ReflowOnResize (default off). Upstream always reflowed the
+		// zssh: honour TerminalOptions.ReflowOnResize (default off). Upstream always reflowed the
 		// normal buffer, and the reflow code throws IndexOutOfRange on common narrowing resizes.
 		bool IsReflowEnabled => hasScrollback && Terminal.Options.ReflowOnResize;
 
@@ -327,7 +327,7 @@ namespace XtermSharp {
 				this.Reflow (newCols, newRows);
 
 			// Trim the end of the line off if cols shrunk.
-			// ussh: also when not reflowing (upstream only trimmed inside the reflow branch).
+			// zssh: also when not reflowing (upstream only trimmed inside the reflow branch).
 			if (cols > newCols) {
 				for (int i = 0; i < lines.Length; i++) {
 					lines [i]?.Resize (newCols, CharData.Null);

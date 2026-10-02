@@ -4,7 +4,7 @@ using Ussh.Core.Models;
 using Ussh.Core.Ssh;
 using Ussh.Core.Tests.Integration;
 
-// Long-running stability check for ussh sessions.
+// Long-running stability check for zssh sessions.
 //
 // Opens N sessions, keeps them busy with mixed output, and every 20s checks that each one still
 // echoes a unique marker. Reports reconnects, failed checks and process memory/threads/handles.

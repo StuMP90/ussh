@@ -232,7 +232,7 @@ public sealed class Vault
             throw new VaultException("The vault file is damaged.", ex);
         }
         if (envelope == null || envelope.Format != FormatName)
-            throw new VaultException("The file is not a ussh vault.");
+            throw new VaultException("The file is not a zSSH vault.");
         if (envelope.Version != FormatVersion)
             throw new VaultException($"Unsupported vault version {envelope.Version}.");
         if (envelope.Kdf != "pbkdf2-sha256" || envelope.Iterations < 100_000)

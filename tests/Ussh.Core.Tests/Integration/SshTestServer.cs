@@ -12,7 +12,7 @@ public sealed class SshTestServer : IDisposable
 {
     public const string Password = "correct-horse-battery";
 
-    private readonly string _workDir = Path.Combine(Path.GetTempPath(), "ussh-ssh-" + Guid.NewGuid().ToString("N"));
+    private readonly string _workDir = Path.Combine(Path.GetTempPath(), "zssh-ssh-" + Guid.NewGuid().ToString("N"));
     private Process? _process;
 
     private SshTestServer() => Directory.CreateDirectory(_workDir);
@@ -27,11 +27,12 @@ public sealed class SshTestServer : IDisposable
     public static bool IsAvailable { get; } = CheckAvailable();
 
     /// <param name="clientKeyPassphrase">Encrypts the generated client key with this passphrase.</param>
-    public static SshTestServer? TryStart(bool withClientKey = false, string clientKeyPassphrase = "", bool sftp = false)
+    /// <param name="port">A preferred port (falls back to a free one if it's taken).</param>
+    public static SshTestServer? TryStart(bool withClientKey = false, string clientKeyPassphrase = "", bool sftp = false, int? port = null)
     {
         if (!IsAvailable)
             return null;
-        var server = new SshTestServer { Port = FreePort() };
+        var server = new SshTestServer { Port = port is { } wanted && IsFree(wanted) ? wanted : FreePort() };
         server.HostKeyFile = Path.Combine(server._workDir, "host_key");
         if (sftp)
         {
@@ -96,6 +97,21 @@ public sealed class SshTestServer : IDisposable
     {
         Stop();
         try { Directory.Delete(_workDir, recursive: true); } catch { }
+    }
+
+    private static bool IsFree(int port)
+    {
+        try
+        {
+            var listener = new TcpListener(IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
     }
 
     public static int FreePort()

@@ -10,10 +10,10 @@ namespace XtermSharp {
 		public string TermName;
 		public CursorStyle CursorStyle;
 		public bool ScreenReaderMode;
-		// ussh: added. Re-wrap long lines on resize. Off by default (like xterm); the reflow
+		// zssh: added. Re-wrap long lines on resize. Off by default (like xterm); the reflow
 		// implementation is not robust.
 		public bool ReflowOnResize;
-		// ussh: settable (upstream was get-only, so scrollback was fixed at 1000 lines).
+		// zssh: settable (upstream was get-only, so scrollback was fixed at 1000 lines).
 		public int? Scrollback { get; set; }
 		public int? TabStopWidth { get; set; }
 

@@ -13,7 +13,7 @@ namespace Ussh.Core.Tests;
 public sealed class PuTTYKeyTests : IDisposable
 {
     private const string Passphrase = "putty passphrase";
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "ussh-ppk-" + Guid.NewGuid().ToString("N"));
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "zssh-ppk-" + Guid.NewGuid().ToString("N"));
     private readonly ITestOutputHelper _output;
     private readonly List<IDisposable> _dispose = new();
     private readonly List<IAsyncDisposable> _sessions = new();

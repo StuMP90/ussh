@@ -1,4 +1,4 @@
-# ussh
+# zSSH
 
 A cross-platform (Windows + Linux) SSH client with tabs, saved servers, port forwarding and
 sessions designed to stay up for days. Built with C#/.NET 10 and [Avalonia](https://avaloniaui.net/),
@@ -12,7 +12,7 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
   *Amazon S3 or S3-compatible storage* (files, using access keys; works with MinIO, Backblaze
   B2, Cloudflare R2 etc. via a custom endpoint). For S3 the bucket is optional: leave it empty
   to browse every bucket the keys can list (needs `s3:ListAllMyBuckets`). Buckets in different
-  regions are found automatically. uSSH never creates, renames or deletes buckets: the bucket
+  regions are found automatically. zSSH never creates, renames or deletes buckets: the bucket
   list is read-only, and only what's inside a bucket can be changed.
 - **Dual-pane file browser** (FileZilla style), in its own tab: this computer on the left, the
   server or bucket on the right. Transfer with the arrow buttons, double-click / Enter, dragging
@@ -49,7 +49,7 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
   use a jump host (chains up to 8 hops). Each hop uses that server's own credentials and
   host-key check, and the whole chain reconnects together. Loops are prevented in the editor.
 - **Themes** per server, or a default in Settings, with a live preview in the picker:
-  uSSH Dark, old-school **Amber (P3)**, **Green (P1)** and **White (P4)** phosphor (every
+  zSSH Dark, old-school **Amber (P3)**, **Green (P1)** and **White (P4)** phosphor (every
   colour rendered as a shade of the tint, like the real thing), Campbell, Solarized
   Dark/Light, Dracula, Nord, Gruvbox Dark, Monokai, One Dark, Tomorrow Night, One Light and
   High Contrast. Changing a theme updates open tabs immediately.
@@ -63,7 +63,7 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
 Most "it died after 15 minutes" bugs come from a handful of causes. Each one is handled
 explicitly:
 
-| Cause | What ussh does |
+| Cause | What zssh does |
 |---|---|
 | Idle NAT/firewall timeout | SSH keepalives (default 30s, per server) |
 | Network silently gone (half-open TCP) | OS dead-peer timeout on the socket (`TCP_USER_TIMEOUT` on Linux, `TCP_MAXRT` on Windows), so a dead link fails in ~90s instead of ~15 min |
@@ -82,8 +82,9 @@ shell; to keep running programs across reconnects, use `tmux` or `screen` on the
 
 ## Security model
 
-- Vault: `vault.json` in `%LOCALAPPDATA%\ussh` (Windows; redirected into the package folder
-  under MSIX) or `~/.config/ussh` (Linux). Override with `USSH_DATA_DIR`.
+- Vault: `vault.json` in `%LOCALAPPDATA%\zssh` (Windows; redirected into the package folder
+  under MSIX) or `~/.config/zssh` (Linux). Override with `ZSSH_DATA_DIR`. The app was
+  previously called uSSH; an existing `ussh` folder is moved to `zssh` on first run.
 - AES-256-GCM. The key comes from the admin password via PBKDF2-SHA256 with 600,000
   iterations. The KDF parameters are authenticated, so tampering with them is detected.
 - Writes are atomic, and the previous version is kept as `vault.json.bak`. On Linux the files
@@ -99,13 +100,13 @@ shell; to keep running programs across reconnects, use `tmux` or `screen` on the
 - Key passphrases can be stored in the vault, or set per server to **Ask every time (never
   stored)**. A prompted passphrase is checked locally before connecting and is kept in memory
   only: the session that used it keeps it for its own auto-reconnects, and a shared in-memory
-  cache lets new panes and tabs for that server reuse it until uSSH is locked or closed.
+  cache lets new panes and tabs for that server reuse it until zSSH is locked or closed.
   Nothing prompts while locked.
 - Logs (`logs/` next to the vault) never contain secrets.
-- S3 access key IDs and secrets are stored in the vault like passwords. Give uSSH an IAM user
+- S3 access key IDs and secrets are stored in the vault like passwords. Give zSSH an IAM user
   with only the access it needs on the bucket. File connections (SFTP and S3) use the same
   host-key checks, jump hosts and passphrase handling as terminals.
-- uSSH always starts with no sessions open: open tabs, panes and their layout are not saved
+- zSSH always starts with no sessions open: open tabs, panes and their layout are not saved
   between runs, and won't be. Restoring them would mean reconnecting automatically at startup
   and keeping a record of what you were connected to; every run instead starts at the server
   list, behind the admin password.
@@ -157,14 +158,14 @@ dotnet test
   byte), conflict choices, cancel/retry, permission errors, and **resume after a dropped
   connection** (the SFTP server is killed mid-transfer; S3 multipart uploads reuse their
   finished parts). S3 tests run against `moto`, a local S3 emulator, so no AWS account is
-  needed: `pip install 'moto[server]'`, or point `USSH_MOTO_SERVER` at a `moto_server`. They
+  needed: `pip install 'moto[server]'`, or point `ZSSH_MOTO_SERVER` at a `moto_server`. They
   pass as no-ops without it.
 - `Ussh.App.Tests`: drives the real UI headlessly: first-run password, server management,
   lock/unlock persistence, validation, a live terminal tab, tab focus and shortcuts, a
   bastion configured in the editor, per-server themes (checked by pixel colour), split panes
   (shortcuts, Alt+Arrow navigation, broadcast, close), multi-select side-by-side connect, and the
   file browser for SFTP-only servers and S3 buckets. Set
-  `USSH_SCREENSHOT_DIR` to keep the screenshots.
+  `ZSSH_SCREENSHOT_DIR` to keep the screenshots.
 
 ### Soak test
 
@@ -189,8 +190,8 @@ Version numbers come from git tags. Push a tag like `v1.0.7`
 runs the tests, builds that version, and creates the GitHub release "Release v1.0.7" with
 generated notes and **the binaries attached**:
 
-- `uSSH_1.0.7.0_x64.msix` and `uSSH_1.0.7.0_arm64.msix` (the Store needs four parts, ending in 0)
-- `ussh-1.0.7-linux-x64.tar.gz`
+- `zSSH_1.0.7.0_x64.msix` and `zSSH_1.0.7.0_arm64.msix` (the Store needs four parts, ending in 0)
+- `zssh-1.0.7-linux-x64.tar.gz`
 
 The tag must be `vMAJOR.MINOR.PATCH`. Anything else (`v1.0`, `1.0.7`, `v1.0.7-beta`) fails the
 build rather than producing an oddly numbered Store package. Each Store submission needs a
@@ -226,7 +227,7 @@ Actions → Variables) to the values from Partner Center.
 ### Linux
 
 ```bash
-packaging/publish-linux.sh 0.1.0 x64     # → artifacts/linux/ussh-0.1.0-linux-x64.tar.gz
+packaging/publish-linux.sh 0.1.0 x64     # → artifacts/linux/zssh-0.1.0-linux-x64.tar.gz
 ```
 
 The tarball is self-contained and includes an `install.sh` (installs to `~/.local`) and a
@@ -273,7 +274,7 @@ The same list is in the app: **Help** in the top bar, or **Ctrl+Shift+H**.
 
 ## Licence
 
-uSSH is released under the [MIT License](LICENSE).
+zSSH is released under the [MIT License](LICENSE).
 
 The vendored terminal engine in `src/XtermSharp` keeps its own MIT licence
 ([src/XtermSharp/LICENSE](src/XtermSharp/LICENSE), © the xterm.js authors and Miguel de Icaza).

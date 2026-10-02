@@ -15,7 +15,7 @@ public sealed class S3Tests : IDisposable
     private readonly ITestOutputHelper _output;
     private readonly List<IDisposable> _dispose = new();
     private readonly List<IAsyncDisposable> _asyncDispose = new();
-    private readonly string _local = Path.Combine(Path.GetTempPath(), "ussh-s3-local-" + Guid.NewGuid().ToString("N"));
+    private readonly string _local = Path.Combine(Path.GetTempPath(), "zssh-s3-local-" + Guid.NewGuid().ToString("N"));
 
     public S3Tests(ITestOutputHelper output)
     {
@@ -290,7 +290,7 @@ public sealed class S3Tests : IDisposable
         var server = S3TestServer.TryStart();
         if (server == null)
         {
-            _output.WriteLine("SKIPPED: moto_server not found (pip install 'moto[server]', or set USSH_MOTO_SERVER).");
+            _output.WriteLine("SKIPPED: moto_server not found (pip install 'moto[server]', or set ZSSH_MOTO_SERVER).");
             return null;
         }
         _dispose.Add(server);

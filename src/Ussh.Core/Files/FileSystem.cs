@@ -61,7 +61,7 @@ public interface IFileSystem : IAsyncDisposable
 
     /// <summary>
     /// Why <paramref name="path"/> can't be created, written, renamed or deleted, or null if it
-    /// can. E.g. S3 buckets themselves are read-only in uSSH (only their contents can change).
+    /// can. E.g. S3 buckets themselves are read-only in zSSH (only their contents can change).
     /// </summary>
     string? ReadOnlyReason(string path) => null;
 }

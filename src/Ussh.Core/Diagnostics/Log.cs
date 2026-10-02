@@ -15,7 +15,7 @@ public static class Log
 
     static Log()
     {
-        Writer = new Thread(WriteLoop) { IsBackground = true, Name = "ussh-log" };
+        Writer = new Thread(WriteLoop) { IsBackground = true, Name = "zssh-log" };
         Writer.Start();
     }
 
@@ -49,7 +49,7 @@ public static class Log
         {
             try
             {
-                var file = Path.Combine(AppPaths.LogDirectory, $"ussh-{DateTime.Now:yyyyMMdd}.log");
+                var file = Path.Combine(AppPaths.LogDirectory, $"zssh-{DateTime.Now:yyyyMMdd}.log");
                 File.AppendAllText(file, line + Environment.NewLine);
             }
             catch { /* best-effort */ }
@@ -58,7 +58,7 @@ public static class Log
 
     private static void PruneOldLogs()
     {
-        foreach (var file in Directory.EnumerateFiles(AppPaths.LogDirectory, "ussh-*.log"))
+        foreach (var file in Directory.EnumerateFiles(AppPaths.LogDirectory, "zssh-*.log"))
         {
             if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-RetainDays))
                 File.Delete(file);

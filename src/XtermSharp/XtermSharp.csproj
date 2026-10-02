@@ -3,7 +3,7 @@
   <!--
     Vendored from https://github.com/migueldeicaza/XtermSharp (MIT, see LICENSE),
     commit 1bed529cd20748ef9da43753e8dd553f65fc5582.
-    Local changes are marked with "ussh:" comments. See NOTICE.md.
+    Local changes are marked with "zssh:" comments. See NOTICE.md.
   -->
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>

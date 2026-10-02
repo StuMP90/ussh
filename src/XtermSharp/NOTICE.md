@@ -7,7 +7,7 @@ The upstream NuGet package (`1.0.0-alpha.10`) is unmaintained and throws
 `NotImplementedException` from code paths that real servers hit, which would
 kill a terminal session. It is vendored so those can be fixed here.
 
-Local changes (search for `ussh:`):
+Local changes (search for `zssh:`):
 
 - `Terminal.MatchColor` implemented (nearest 256-colour match). Upstream threw on
   every truecolor SGR sequence (`ESC[38;2;r;g;bm` / `ESC[48;2;r;g;bm`).

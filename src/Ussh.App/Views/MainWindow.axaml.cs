@@ -250,7 +250,7 @@ public partial class MainWindow : Window
             running.Add($"{vm.ConnectedSessionCount} session(s) are connected");
         if (vm.ActiveTransfers > 0)
             running.Add($"{vm.ActiveTransfers} file transfer(s) are still running");
-        if (await dialogs.ConfirmAsync("Quit uSSH", string.Join(" and ", running) + ". Stop them and quit?", "Quit", danger: true))
+        if (await dialogs.ConfirmAsync("Quit zSSH", string.Join(" and ", running) + ". Stop them and quit?", "Quit", danger: true))
         {
             _closeConfirmed = true;
             Close();

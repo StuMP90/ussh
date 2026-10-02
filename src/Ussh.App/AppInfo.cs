@@ -12,6 +12,6 @@ public static class AppInfo
     /// <summary>e.g. "1.0.7".</summary>
     public static string Version => FullVersion.Split('+')[0];
 
-    /// <summary>e.g. "uSSH 1.0.7".</summary>
-    public static string DisplayVersion => $"uSSH {Version}";
+    /// <summary>e.g. "zSSH 1.0.7".</summary>
+    public static string DisplayVersion => $"zSSH {Version}";
 }

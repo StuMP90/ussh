@@ -8,7 +8,7 @@ public sealed class VaultTests : IDisposable
 {
     // Low iteration count keeps the tests fast; production uses Vault.DefaultIterations.
     private const int TestIterations = 100_000;
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "ussh-tests-" + Guid.NewGuid().ToString("N"));
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "zssh-tests-" + Guid.NewGuid().ToString("N"));
     private string VaultPath => Path.Combine(_dir, "vault.json");
 
     public void Dispose()
@@ -122,5 +122,20 @@ public sealed class VaultTests : IDisposable
         vault.Lock();
 
         Assert.Throws<VaultException>(() => vault.Save(data));
+    }
+
+    [Fact]
+    public void DataFromBeforeTheRenameIsMovedAndStillUnlocks()
+    {
+        var oldDir = Path.Combine(_dir, "ussh");
+        var newDir = Path.Combine(_dir, "zssh");
+        new Vault(Path.Combine(oldDir, "vault.json")).Create("correct horse battery", TestIterations);
+
+        Assert.Equal(newDir, AppPaths.MigrateFromOldName(oldDir, newDir));
+
+        Assert.False(Directory.Exists(oldDir));
+        new Vault(Path.Combine(newDir, "vault.json")).Unlock("correct horse battery");
+        // Once moved (or on a fresh install), nothing more happens.
+        Assert.Equal(newDir, AppPaths.MigrateFromOldName(oldDir, newDir));
     }
 }

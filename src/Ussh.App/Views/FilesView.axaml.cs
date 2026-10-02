@@ -18,7 +18,7 @@ public partial class FilesView : UserControl
     public static readonly IValueConverter StatusBrush = new FuncValueConverter<bool, IBrush>(error =>
         error ? Brushes.IndianRed : new SolidColorBrush(Color.Parse("#C0FFFFFF")));
 
-    private static readonly DataFormat<string> DragFormat = DataFormat.CreateStringApplicationFormat("ussh-file-entries");
+    private static readonly DataFormat<string> DragFormat = DataFormat.CreateStringApplicationFormat("zssh-file-entries");
     // Dragged rows, in-process (both panes live in this window).
     private static (FilePaneViewModel Source, IReadOnlyList<FileEntry> Entries)? _dragged;
 
@@ -53,7 +53,7 @@ public partial class FilesView : UserControl
         try
         {
             var item = new DataTransferItem();
-            item.Set(DragFormat, "ussh");
+            item.Set(DragFormat, "zssh");
             var data = new DataTransfer();
             data.Add(item);
             await DragDrop.DoDragDropAsync(e, data, DragDropEffects.Copy);

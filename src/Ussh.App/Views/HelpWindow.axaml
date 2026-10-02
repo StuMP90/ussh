@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Ussh.App.Views.HelpWindow"
-        Title="uSSH help"
+        Title="zSSH help"
         Width="760" Height="720" MinWidth="520" MinHeight="400"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
   <Window.Styles>
@@ -32,7 +32,7 @@
       <DockPanel>
         <Button DockPanel.Dock="Right" Content="Close" IsDefault="True" IsCancel="True" Click="OnClose" MinWidth="90" />
         <Button DockPanel.Dock="Right" Content="Licences" Click="OnLicences" Margin="0,0,8,0"
-                ToolTip.Tip="uSSH's licence and the licences of everything it includes" />
+                ToolTip.Tip="zSSH's licence and the licences of everything it includes" />
         <TextBlock x:Name="VersionText" VerticalAlignment="Center" Opacity="0.6" />
       </DockPanel>
     </Border>

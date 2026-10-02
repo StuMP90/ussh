@@ -77,7 +77,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UnlockCommand))]
     private bool _isBusy;
 
-    public string LockTitle => IsSetupRequired ? "Welcome to uSSH" : "uSSH is locked";
+    public string LockTitle => IsSetupRequired ? "Welcome to zSSH" : "zSSH is locked";
 
     public string LockPrompt => IsSetupRequired
         ? $"Create an admin password. It encrypts your saved servers, passwords and keys, and is required to connect or change server settings. Minimum {Vault.MinimumPasswordLength} characters. It cannot be recovered if forgotten."
@@ -166,7 +166,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private async Task ForgotPasswordAsync()
     {
         if (!await _dialogs.ConfirmAsync("Forgot the admin password?",
-                "The admin password can't be recovered: it's the key that encrypts everything uSSH stores.\n\n" +
+                "The admin password can't be recovered: it's the key that encrypts everything zSSH stores.\n\n" +
                 "Starting again means losing ALL saved servers, passwords, private keys, S3 access keys and " +
                 "settings. You'll need to add them again.\n\n" +
                 "The old vault isn't deleted: it's renamed and kept, encrypted, in the same folder. If you remember " +

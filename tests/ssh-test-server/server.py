@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Throwaway SSH server for ussh integration tests and manual testing (paramiko).
+"""Throwaway SSH server for zssh integration tests and manual testing (paramiko).
 
 Gives each session a real login shell (bash) in a pty, so full-screen apps, resize and
 `exit` behave like a normal server. Supports password and public-key auth, local (-L),
@@ -289,7 +289,7 @@ def run_shell(channel, server):
             "HOME": os.environ.get("HOME", "/tmp"),
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "LANG": "C.UTF-8",
-            "PS1": r"ussh-test$ ",
+            "PS1": r"zssh-test$ ",
         }
         os.execve("/bin/bash", ["bash", "--norc", "--noprofile", "-i"], env)
     server.master_fd = master_fd

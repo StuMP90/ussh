@@ -749,7 +749,7 @@ namespace XtermSharp {
 					bg = CharData.DefaultAttr & 0x1ff;
 				} else if (p == 38) {
 					// fg color 256
-					// ussh: bounds-checked; truncated sequences such as ESC[38;2m indexed past the end.
+					// zssh: bounds-checked; truncated sequences such as ESC[38;2m indexed past the end.
 					if (i + 4 < pars.Length && pars [i + 1] == 2) {
 						i += 2;
 						fg = terminal.MatchColor (
@@ -768,7 +768,7 @@ namespace XtermSharp {
 					}
 				} else if (p == 48) {
 					// bg color 256
-					// ussh: bounds-checked; truncated sequences such as ESC[38;2m indexed past the end.
+					// zssh: bounds-checked; truncated sequences such as ESC[38;2m indexed past the end.
 					if (i + 4 < pars.Length && pars [i + 1] == 2) {
 						i += 2;
 						bg = terminal.MatchColor (
@@ -1204,7 +1204,7 @@ namespace XtermSharp {
 			var wrapAroundMode = terminal.Wraparound;
 			var insertMode = terminal.InsertMode;
 			var curAttr = terminal.CurAttr;
-			var bufferRow = buffer.EnsureLine (buffer.Y + buffer.YBase); // ussh: was an unchecked index
+			var bufferRow = buffer.EnsureLine (buffer.Y + buffer.YBase); // zssh: was an unchecked index
 
 
 			terminal.UpdateRange (buffer.Y);
@@ -1246,7 +1246,7 @@ namespace XtermSharp {
 				// until a valid UTF-8 string comes in, and *then* we can call this method
 				// var chWidth = Rune.ColumnWidth ((Rune)code);
 
-				// ussh: real column width (wcwidth). Upstream hard-coded 1, so CJK and emoji
+				// zssh: real column width (wcwidth). Upstream hard-coded 1, so CJK and emoji
 				// desynchronised the cursor from the remote shell's line editor.
 				var chWidth = ((uint)code).ConsoleWidth ();
 
@@ -1315,7 +1315,7 @@ namespace XtermSharp {
 						}
 
 						// row changed, get it again
-						bufferRow = buffer.EnsureLine (buffer.Y + buffer.YBase); // ussh: was an unchecked index
+						bufferRow = buffer.EnsureLine (buffer.Y + buffer.YBase); // zssh: was an unchecked index
 					} else {
 						if (chWidth == 2) {
 							// FIXME: check for xterm behavior

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generates THIRD-PARTY-NOTICES.txt for a uSSH build.
+"""Generates THIRD-PARTY-NOTICES.txt for a zSSH build.
 
-Lists everything shipped with the app, with copyright and licence text: uSSH itself, the
+Lists everything shipped with the app, with copyright and licence text: zSSH itself, the
 vendored XtermSharp, the bundled .NET runtime, the Inter font, and every NuGet package the
 build restored (for the given runtime, so each platform lists what it actually ships).
 
@@ -126,7 +126,7 @@ def main():
     def add(title, header, body):
         sections.append((title, [h for h in header if h], body))
 
-    add("uSSH", ["https://github.com/StuMP90/ussh", "Licence: MIT"], read(os.path.join(ROOT, "LICENSE")))
+    add("zSSH", ["https://github.com/StuMP90/ussh", "Licence: MIT"], read(os.path.join(ROOT, "LICENSE")))
     add("XtermSharp (vendored in src/XtermSharp, with local changes)",
         ["https://github.com/migueldeicaza/XtermSharp", "Licence: MIT"],
         read(os.path.join(ROOT, "src", "XtermSharp", "LICENSE")))
@@ -183,8 +183,8 @@ def main():
         return 1
 
     with open(args.output, "w", encoding="utf-8", newline="\n") as out:
-        out.write("uSSH: THIRD-PARTY NOTICES\n\n")
-        out.write("uSSH is released under the MIT License. It includes the software listed below,\n")
+        out.write("zSSH: THIRD-PARTY NOTICES\n\n")
+        out.write("zSSH is released under the MIT License. It includes the software listed below,\n")
         out.write("each under its own licence, reproduced here as those licences require.\n\n")
         out.write("Contents:\n")
         for title, _, _ in sections:

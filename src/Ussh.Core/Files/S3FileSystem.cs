@@ -16,7 +16,7 @@ namespace Ussh.Core.Files;
 /// <list type="bullet">
 /// <item>Bucket set: paths are "/" + key ("/a/b/c.txt") inside that bucket.</item>
 /// <item>Bucket blank ("all buckets"): the top level lists the account's buckets and paths are
-/// "/bucket/key". The bucket level is read-only: uSSH never creates, renames or deletes buckets.</item>
+/// "/bucket/key". The bucket level is read-only: zSSH never creates, renames or deletes buckets.</item>
 /// </list>
 ///
 /// S3 has no real folders: keys are flat, and "a/b/c.txt" shows as folder a, folder b, file
@@ -29,7 +29,7 @@ namespace Ussh.Core.Files;
 public sealed class S3FileSystem : IFileSystem
 {
     private const string BucketLevelReason =
-        "Buckets can't be created, renamed, deleted or uploaded into from uSSH. Open a bucket and work inside it.";
+        "Buckets can't be created, renamed, deleted or uploaded into from zSSH. Open a bucket and work inside it.";
 
     private readonly ServerProfile _profile;
     private readonly bool _customEndpoint;

@@ -314,7 +314,7 @@ namespace XtermSharp {
 
 		internal void UpdateRange (int y)
 		{
-			// ussh: clamp instead of throwing; a refresh hint must never abort parsing.
+			// zssh: clamp instead of throwing; a refresh hint must never abort parsing.
 			if (y < 0)
 				y = 0;
 
@@ -498,7 +498,7 @@ namespace XtermSharp {
 
 		internal void EmitA11yTab (object p)
 		{
-			// ussh: screen reader tab events are not surfaced; was NotImplementedException.
+			// zssh: screen reader tab events are not surfaced; was NotImplementedException.
 		}
 
 		internal void SetgLevel (int v)
@@ -681,7 +681,7 @@ namespace XtermSharp {
 
 		/// <summary>
 		/// Maps a 24-bit colour to the nearest entry of the 256-colour palette.
-		/// ussh: upstream threw NotImplementedException, so any truecolor SGR
+		/// zssh: upstream threw NotImplementedException, so any truecolor SGR
 		/// sequence (ESC[38;2;r;g;bm) crashed the parser.
 		/// </summary>
 		public int MatchColor (int r1, int g1, int b1)
@@ -729,7 +729,7 @@ namespace XtermSharp {
 				UpdateRange (buffer.ScrollTop);
 				UpdateRange (buffer.ScrollBottom);
 			} else if (buffer.Y > 0) {
-				// ussh: guard. With the cursor above a scroll region (Y < ScrollTop), upstream
+				// zssh: guard. With the cursor above a scroll region (Y < ScrollTop), upstream
 				// decremented Y past 0.
 				buffer.Y--;
 			}
@@ -1043,7 +1043,7 @@ namespace XtermSharp {
 		{
 			var buffer = Buffer;
 
-			// ussh: inclusive of ScrollBottom (as xterm.js), and skip rows that don't exist yet.
+			// zssh: inclusive of ScrollBottom (as xterm.js), and skip rows that don't exist yet.
 			for (int row = buffer.ScrollTop; row <= buffer.ScrollBottom; row++) {
 				var line = buffer.Lines [row + buffer.YBase];
 				if (line == null)
@@ -1067,7 +1067,7 @@ namespace XtermSharp {
 			if (buffer.Y > buffer.ScrollBottom || buffer.Y < buffer.ScrollTop)
 				return;
 
-			// ussh: inclusive of ScrollBottom (as xterm.js), and skip rows that don't exist yet.
+			// zssh: inclusive of ScrollBottom (as xterm.js), and skip rows that don't exist yet.
 			for (int row = buffer.ScrollTop; row <= buffer.ScrollBottom; row++) {
 				var line = buffer.Lines [row + buffer.YBase];
 				if (line == null)
@@ -1151,7 +1151,7 @@ namespace XtermSharp {
 
 		void Report (string prefix, string text, object [] args)
 		{
-			// ussh: upstream wrote every unknown sequence to stdout, which is noise (and slow)
+			// zssh: upstream wrote every unknown sequence to stdout, which is noise (and slow)
 			// in a GUI app. Kept as a hook for debugging.
 			ReportHook?.Invoke (prefix, text, args);
 		}

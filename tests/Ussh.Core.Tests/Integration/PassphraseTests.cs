@@ -57,7 +57,7 @@ public sealed class PassphraseTests : IDisposable
         var session = Open(server, Profile(server), provider);
         await WaitFor(session, SessionState.Connected);
 
-        provider.Clear(); // as when uSSH locks: the shared cache is wiped...
+        provider.Clear(); // as when zSSH locks: the shared cache is wiped...
         server.Stop();
         await WaitFor(session, SessionState.Reconnecting);
         server.Start();

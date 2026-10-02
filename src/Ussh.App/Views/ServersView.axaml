@@ -149,7 +149,7 @@
             <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding S3ServiceUrl}" Watermark="Leave empty for AWS. For S3-compatible storage, e.g. https://s3.example.com" />
           </Grid>
           <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                     Text="Use an IAM user with only the access it needs (e.g. s3:ListBucket, s3:GetObject, s3:PutObject, s3:DeleteObject). Browsing all buckets also needs s3:ListAllMyBuckets. uSSH never creates or deletes buckets." />
+                     Text="Use an IAM user with only the access it needs (e.g. s3:ListBucket, s3:GetObject, s3:PutObject, s3:DeleteObject). Browsing all buckets also needs s3:ListAllMyBuckets. zSSH never creates or deletes buckets." />
         </StackPanel>
 
         <StackPanel Spacing="6" IsVisible="{Binding ShowSshFields}" Margin="0,8,0,0">
@@ -185,7 +185,7 @@
                      Watermark="Leave empty if the key isn't encrypted. Stored encrypted in the vault." />
             <CheckBox IsChecked="{Binding AskForPassphrase}" Content="Ask every time (never stored)" />
             <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding AskForPassphrase}"
-                       Text="You'll be asked when connecting. The answer is kept in memory only: open sessions reuse it to reconnect, and new panes for this server reuse it until uSSH is locked or closed." />
+                       Text="You'll be asked when connecting. The answer is kept in memory only: open sessions reuse it to reconnect, and new panes for this server reuse it until zSSH is locked or closed." />
           </StackPanel>
         </Grid>
 
@@ -316,7 +316,7 @@
         <TextBlock Classes="h2" Text="About" />
         <StackPanel Orientation="Horizontal" Spacing="12">
           <SelectableTextBlock Text="{Binding AppVersion}" VerticalAlignment="Center" />
-          <Button Content="Licences" Click="OnLicences" ToolTip.Tip="uSSH's licence and the licences of everything it includes" />
+          <Button Content="Licences" Click="OnLicences" ToolTip.Tip="zSSH's licence and the licences of everything it includes" />
         </StackPanel>
 
         <TextBlock Classes="h2" Text="Data" />

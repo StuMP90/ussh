@@ -33,8 +33,8 @@ def glyph(size: int, pad_ratio: float = 0.0, transparent: bool = False) -> Image
 def main() -> None:
     assets = ROOT / "src" / "Ussh.App" / "Assets"
     assets.mkdir(parents=True, exist_ok=True)
-    glyph(256).save(assets / "ussh.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-    glyph(256).save(assets / "ussh.png")
+    glyph(256).save(assets / "zssh.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    glyph(256).save(assets / "zssh.png")
 
     msix = ROOT / "packaging" / "msix" / "Images"
     msix.mkdir(parents=True, exist_ok=True)
@@ -45,6 +45,13 @@ def main() -> None:
     wide = Image.new("RGBA", (310, 150), BG)
     wide.alpha_composite(glyph(150, pad_ratio=0.18), (80, 0))
     wide.save(msix / "Wide310x150Logo.png")
+
+
+    # Microsoft Store listing logos (Partner Center: 300x300 required, 150x150 and 71x71).
+    store = ROOT / "packaging" / "store"
+    store.mkdir(parents=True, exist_ok=True)
+    for size in (300, 150, 71):
+        glyph(size).save(store / f"StoreLogo-{size}x{size}.png")
 
 
 if __name__ == "__main__":

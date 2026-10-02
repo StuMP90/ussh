@@ -4,8 +4,8 @@
         xmlns:views="using:Ussh.App.Views"
         x:Class="Ussh.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="uSSH"
-        Icon="/Assets/ussh.ico"
+        Title="zSSH"
+        Icon="/Assets/zssh.ico"
         Width="1280" Height="800"
         MinWidth="640" MinHeight="400"
         WindowStartupLocation="CenterScreen">
@@ -34,7 +34,7 @@
       <Border DockPanel.Dock="Top" Padding="10,6" Background="#10FFFFFF">
         <DockPanel>
           <Button DockPanel.Dock="Right" Content="Lock" Command="{Binding LockCommand}"
-                  ToolTip.Tip="Lock uSSH (Ctrl+Shift+L). Sessions keep running." />
+                  ToolTip.Tip="Lock zSSH (Ctrl+Shift+L). Sessions keep running." />
           <Button DockPanel.Dock="Right" Content="{Binding TransfersLabel}" Command="{Binding ShowTransfersCommand}"
                   IsVisible="{Binding ActiveTransfers}" Margin="0,0,12,0"
                   ToolTip.Tip="Files are being transferred. Click to go to them." />
@@ -47,7 +47,7 @@
           <Button DockPanel.Dock="Right" Content="Help" Click="OnHelpClick" Margin="0,0,8,0"
                   ToolTip.Tip="Keyboard shortcuts and how things work (Ctrl+Shift+H)" />
           <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-            <TextBlock Text="uSSH" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock Text="zSSH" FontWeight="SemiBold" VerticalAlignment="Center" />
             <TextBlock Text="{Binding AppVersionNumber}" Classes="muted" FontSize="12" VerticalAlignment="Center" />
           </StackPanel>
         </DockPanel>
@@ -78,7 +78,7 @@
       <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="28"
               CornerRadius="8" Background="#10FFFFFF">
         <StackPanel Spacing="12">
-          <Image Source="/Assets/ussh.png" Width="56" Height="56" HorizontalAlignment="Left" />
+          <Image Source="/Assets/zssh.png" Width="56" Height="56" HorizontalAlignment="Left" />
           <TextBlock Classes="h1" Text="{Binding LockTitle}" />
           <TextBlock Text="{Binding LockPrompt}" TextWrapping="Wrap" Classes="muted" />
           <TextBox x:Name="PasswordBox" PasswordChar="●" Watermark="Admin password"

@@ -40,11 +40,11 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/testenv"
           "$RUNNER_TEMP/testenv/bin/pip" install --quiet paramiko "moto[server]"
           echo "$RUNNER_TEMP/testenv/bin" >> "$GITHUB_PATH"
-          echo "USSH_MOTO_SERVER=$RUNNER_TEMP/testenv/bin/moto_server" >> "$GITHUB_ENV"
+          echo "ZSSH_MOTO_SERVER=$RUNNER_TEMP/testenv/bin/moto_server" >> "$GITHUB_ENV"
           sudo apt-get update && sudo apt-get install -y putty-tools
       - name: Check the S3 emulator starts
         run: |
-          "$USSH_MOTO_SERVER" -H 127.0.0.1 -p 5999 > moto.log 2>&1 &
+          "$ZSSH_MOTO_SERVER" -H 127.0.0.1 -p 5999 > moto.log 2>&1 &
           pid=$!
           for i in $(seq 1 60); do
             if curl -s -o /dev/null http://127.0.0.1:5999; then echo "moto_server is up"; kill "$pid"; exit 0; fi
@@ -76,7 +76,7 @@ jobs:
       - run: packaging/publish-linux.sh "${{ needs.version.outputs.version }}" x64
       - uses: actions/upload-artifact@v7
         with:
-          name: ussh-linux-x64
+          name: zssh-linux-x64
           path: artifacts/linux/*.tar.gz
 
   msix:
@@ -95,12 +95,12 @@ jobs:
           ./packaging/build-msix.ps1
           -Version "${{ needs.version.outputs.msix_version }}"
           -Architecture x64,arm64
-          -IdentityName "${{ vars.MSIX_IDENTITY_NAME || 'ussh.dev' }}"
-          -Publisher "${{ vars.MSIX_PUBLISHER || 'CN=ussh-dev' }}"
-          -PublisherDisplayName "${{ vars.MSIX_PUBLISHER_DISPLAY_NAME || 'ussh developer' }}"
+          -IdentityName "${{ vars.MSIX_IDENTITY_NAME || 'zssh.dev' }}"
+          -Publisher "${{ vars.MSIX_PUBLISHER || 'CN=zssh-dev' }}"
+          -PublisherDisplayName "${{ vars.MSIX_PUBLISHER_DISPLAY_NAME || 'zssh developer' }}"
       - uses: actions/upload-artifact@v7
         with:
-          name: ussh-msix
+          name: zssh-msix
           path: artifacts/msix/*.msix
 
   release:

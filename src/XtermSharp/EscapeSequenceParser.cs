@@ -91,7 +91,7 @@ namespace XtermSharp {
 	// TODO: implement error recovery hook via error handler return values
 	// 
 	public class EscapeSequenceParser : IDisposable {
-		// ussh: numeric parameters are clamped. Upstream accumulated without bounds, so
+		// zssh: numeric parameters are clamped. Upstream accumulated without bounds, so
 		// `ESC[999999999M` looped for minutes (a remote could hang the terminal with one
 		// sequence) and larger values overflowed to negative counts.
 		const int MaxParamValue = 65535;
@@ -575,7 +575,7 @@ namespace XtermSharp {
 					break;
 				case ParserAction.Param:
 					if (code == 0x3b) {
-						// ussh: cap the parameter count (xterm.js uses 32); was unbounded.
+						// zssh: cap the parameter count (xterm.js uses 32); was unbounded.
 						if (pars.Count < MaxParams)
 							pars.Add (0);
 					} else

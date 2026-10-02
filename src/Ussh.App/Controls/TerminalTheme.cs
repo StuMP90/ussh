@@ -31,7 +31,7 @@ public sealed class TerminalTheme
     public IReadOnlyList<Color> Ansi { get; }
     public Color? MonochromeTint { get; }
 
-    public const string DefaultName = "uSSH Dark";
+    public const string DefaultName = "zSSH Dark";
 
     private const string XtermAnsi = "000000 CD0000 00CD00 CDCD00 0000EE CD00CD 00CDCD E5E5E5 7F7F7F FF0000 00FF00 FFFF00 5C5CFF FF00FF 00FFFF FFFFFF";
 

@@ -86,7 +86,7 @@ namespace XtermSharp {
 			if (rune >= 0x7f && rune <= 0xa0)
 				return 0;
 			/* binary search in table of non-spacing characters */
-			// ussh: pass the last index; upstream passed the row count and indexed past the end.
+			// zssh: pass the last index; upstream passed the row count and indexed past the end.
 			if (bisearch (rune, combining, combining.GetLength (0) - 1) != 0)
 				return 0;
 			/* if we arrive here, ucs is not a combining or C0/C1 control character */
@@ -102,10 +102,10 @@ namespace XtermSharp {
 				(rune >= 0xfe30 && rune <= 0xfe6f) || /* CJK Compatibility Forms */
 				(rune >= 0xff00 && rune <= 0xff60) || /* Fullwidth Forms */
 				(rune >= 0xffe0 && rune <= 0xffe6) ||
-				(rune >= 0x1f300 && rune <= 0x1f64f) || /* ussh: emoji (misc symbols, emoticons) */
-				(rune >= 0x1f680 && rune <= 0x1f6ff) || /* ussh: transport and map symbols */
-				(rune >= 0x1f900 && rune <= 0x1f9ff) || /* ussh: supplemental symbols */
-				(rune >= 0x1fa70 && rune <= 0x1faff) || /* ussh: symbols and pictographs ext-A */
+				(rune >= 0x1f300 && rune <= 0x1f64f) || /* zssh: emoji (misc symbols, emoticons) */
+				(rune >= 0x1f680 && rune <= 0x1f6ff) || /* zssh: transport and map symbols */
+				(rune >= 0x1f900 && rune <= 0x1f9ff) || /* zssh: supplemental symbols */
+				(rune >= 0x1fa70 && rune <= 0x1faff) || /* zssh: symbols and pictographs ext-A */
 				(rune >= 0x20000 && rune <= 0x2fffd) ||
 				  (rune >= 0x30000 && rune <= 0x3fffd))) ? 1 : 0);
 		}

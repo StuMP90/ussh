@@ -45,7 +45,7 @@ public partial class HelpWindow : Window
             ("Backspace", "Up one folder"),
             ("F5  /  F2  /  Delete", "Refresh / rename / delete"),
             (null, "When a file already exists you can Overwrite, \"Overwrite if different\" (only if the size differs or the copy being sent is newer), Keep both, or Skip, optionally for the rest of the transfer. Interrupted transfers resume where they stopped."),
-            (null, "S3 servers with no bucket set list all buckets. Buckets themselves are read-only: uSSH never creates, renames or deletes them."),
+            (null, "S3 servers with no bucket set list all buckets. Buckets themselves are read-only: zSSH never creates, renames or deletes them."),
         }),
         ("Servers", new (string?, string)[]
         {
@@ -57,9 +57,9 @@ public partial class HelpWindow : Window
         }),
         ("Security", new (string?, string)[]
         {
-            ("Ctrl+Shift+L", "Lock uSSH. Sessions and transfers keep running; unlocking needs the admin password"),
+            ("Ctrl+Shift+L", "Lock zSSH. Sessions and transfers keep running; unlocking needs the admin password"),
             ("Ctrl+Shift+H", "This help"),
-            (null, "uSSH locks itself after the idle time set in Settings. Every run starts with no sessions open."),
+            (null, "zSSH locks itself after the idle time set in Settings. Every run starts with no sessions open."),
             (null, "Forgot the admin password? Use the link on the unlock screen to start again. The old vault is set aside, not deleted, in case the password turns up."),
         }),
     };

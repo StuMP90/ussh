@@ -7,7 +7,7 @@ using Ussh.Core.Models;
 namespace Ussh.Core.Tests.Integration;
 
 /// <summary>
-/// A local S3 emulator (moto) for tests: no AWS account involved. Uses $USSH_MOTO_SERVER, else
+/// A local S3 emulator (moto) for tests: no AWS account involved. Uses $ZSSH_MOTO_SERVER, else
 /// "moto_server" on the PATH ("pip install 'moto[server]'"); tests return early without it.
 /// </summary>
 public sealed class S3TestServer : IDisposable
@@ -84,7 +84,7 @@ public sealed class S3TestServer : IDisposable
 
     private static string? Find()
     {
-        var configured = Environment.GetEnvironmentVariable("USSH_MOTO_SERVER");
+        var configured = Environment.GetEnvironmentVariable("ZSSH_MOTO_SERVER");
         if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
             return configured;
         foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))

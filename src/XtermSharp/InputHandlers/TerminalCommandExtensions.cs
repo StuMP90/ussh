@@ -308,7 +308,7 @@ namespace XtermSharp.CommandExtensions {
 					return;
 				case 20:
 				case 21:
-					// ussh: always report an empty title. Echoing the real title back lets a remote
+					// zssh: always report an empty title. Echoing the real title back lets a remote
 					// set it to a command and have the terminal "type" it (title-report injection),
 					// which is why xterm disables these reports by default. Upstream also threw when
 					// no title had been set.

@@ -23,12 +23,12 @@ using Ussh.Core.Tests.Integration;
 namespace Ussh.App.Tests;
 
 /// <summary>
-/// Drives the real windows off-screen. Screenshots go to $USSH_SCREENSHOT_DIR (default: temp).
+/// Drives the real windows off-screen. Screenshots go to $ZSSH_SCREENSHOT_DIR (default: temp).
 /// </summary>
-public sealed class UiTests : IDisposable
+public sealed partial class UiTests : IDisposable
 {
     private const string AdminPassword = "admin-password-1";
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "ussh-ui-" + Guid.NewGuid().ToString("N"));
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "zssh-ui-" + Guid.NewGuid().ToString("N"));
     private readonly List<IDisposable> _dispose = new();
 
     public void Dispose()
@@ -278,7 +278,7 @@ public sealed class UiTests : IDisposable
         AddServer(vm, "Old school", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
         vm.Servers.SelectedServer = vm.Servers.FilteredServers.Single();
         var editor = vm.Servers.Editor!;
-        Assert.StartsWith("Default (uSSH Dark)", editor.ThemeOptions[0].Label);
+        Assert.StartsWith("Default (zSSH Dark)", editor.ThemeOptions[0].Label);
         Assert.Contains(editor.ThemeOptions, o => o.Name == "Green (P1 phosphor)");
         editor.SelectedTheme = editor.ThemeOptions.Single(o => o.Name == "Amber (P3 phosphor)");
         vm.Servers.SaveServerCommand.Execute(null);
@@ -711,7 +711,7 @@ public sealed class UiTests : IDisposable
         var bucket = s3.CreateBucket("ui-bucket");
         var local = Path.Combine(_dir, "to-upload");
         Directory.CreateDirectory(local);
-        File.WriteAllText(Path.Combine(local, "notes.txt"), "uploaded from uSSH");
+        File.WriteAllText(Path.Combine(local, "notes.txt"), "uploaded from zSSH");
 
         var (window, vm, sessions) = Create();
         await CreateVault(vm);
@@ -814,10 +814,10 @@ public sealed class UiTests : IDisposable
         Assert.False(File.Exists(notices));
         Assert.Contains("development build", LicensesWindow.Load()); // not packaged: says where they come from
 
-        File.WriteAllText(notices, "uSSH: THIRD-PARTY NOTICES\n\nSSH.NET 2026.0.0\nLicence: MIT");
+        File.WriteAllText(notices, "zSSH: THIRD-PARTY NOTICES\n\nSSH.NET 2026.0.0\nLicence: MIT");
         try
         {
-            Assert.StartsWith("uSSH: THIRD-PARTY NOTICES", LicensesWindow.Load());
+            Assert.StartsWith("zSSH: THIRD-PARTY NOTICES", LicensesWindow.Load());
             var window = new LicensesWindow();
             window.Show();
             await Pump(100);
@@ -1135,7 +1135,7 @@ public sealed class UiTests : IDisposable
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        var dir = Environment.GetEnvironmentVariable("USSH_SCREENSHOT_DIR") ?? Path.Combine(Path.GetTempPath(), "ussh-screenshots");
+        var dir = Environment.GetEnvironmentVariable("ZSSH_SCREENSHOT_DIR") ?? Path.Combine(Path.GetTempPath(), "zssh-screenshots");
         Directory.CreateDirectory(dir);
         frame!.Save(Path.Combine(dir, name + ".png"));
     }

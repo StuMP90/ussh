@@ -19,7 +19,7 @@ public sealed class AppSettings
     public double FontSize { get; set; } = 14;
 
     /// <summary>Terminal theme for servers that don't choose their own.</summary>
-    public string DefaultTheme { get; set; } = "uSSH Dark";
+    public string DefaultTheme { get; set; } = "zSSH Dark";
 
     /// <summary>What happens when you type <c>exit</c> (servers can override it).</summary>
     public ShellExitAction OnShellExit { get; set; } = ShellExitAction.KeepOpen;
