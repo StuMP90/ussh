@@ -26,4 +26,28 @@ public static class KeyValidator
             return "Private key could not be loaded: " + ex.Message;
         }
     }
+
+    /// <summary>
+    /// For "ask for passphrase every time": the key must parse and be passphrase-protected.
+    /// Returns null if so, otherwise a message suitable for the user.
+    /// </summary>
+    public static string? ValidateEncrypted(string? privateKey)
+    {
+        if (Validate(privateKey, "x") is { } error && !error.StartsWith("Private key could not be loaded", StringComparison.Ordinal))
+            return error; // empty, public key, .ppk
+        try
+        {
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(privateKey!.Trim() + "\n"));
+            _ = new PrivateKeyFile(stream);
+            return "This key has no passphrase, so there is nothing to ask for. Untick \"Ask every time\".";
+        }
+        catch (Renci.SshNet.Common.SshPassPhraseNullOrEmptyException)
+        {
+            return null; // encrypted: exactly what we want
+        }
+        catch (Exception ex)
+        {
+            return "Private key could not be loaded: " + ex.Message;
+        }
+    }
 }

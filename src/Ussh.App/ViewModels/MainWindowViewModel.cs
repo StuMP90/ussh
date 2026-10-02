@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -87,7 +88,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         get
         {
-            var live = Tabs.OfType<TerminalTabViewModel>().Count();
+            var live = Tabs.OfType<TerminalTabViewModel>().Sum(t => t.Panes.Count);
             return IsLocked && live > 0 ? $"{live} session(s) still running in the background." : null;
         }
     }
@@ -150,6 +151,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Log.Info("vault", "Vault unlocked.");
     }
 
+    /// <summary>Raised after locking (e.g. to forget in-memory passphrases).</summary>
+    public event Action? Locked;
+
     [RelayCommand]
     public void Lock()
     {
@@ -159,6 +163,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _vault.Lock();
         _data = null;
         IsLocked = true;
+        Locked?.Invoke();
         Log.Info("vault", "Vault locked.");
     }
 
@@ -193,32 +198,191 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _vault.ChangePassword(current, replacement, _data);
     }
 
-    public void Connect(ServerProfile profile)
+    /// <summary>Asks the window to put the keyboard into the selected tab's focused pane.</summary>
+    public event Action? TerminalFocusRequested;
+
+    /// <summary>Opens one server in a new tab.</summary>
+    public void Connect(ServerProfile profile) => ConnectTogether(new[] { profile });
+
+    /// <summary>Opens several servers as panes of one new tab (side by side, or a grid for 4+).</summary>
+    public void ConnectTogether(IReadOnlyList<ServerProfile> profiles)
     {
-        if (IsLocked || _data == null)
+        if (IsLocked || profiles.Count == 0)
             return;
-        IReadOnlyList<ServerProfile> jumpHosts;
+        var sessions = new List<SshSession>();
+        foreach (var profile in profiles)
+        {
+            if (OpenSession(profile) is not { } session)
+            {
+                foreach (var opened in sessions)
+                    _ = _sessions.CloseAsync(opened);
+                return;
+            }
+            sessions.Add(session);
+        }
+        var tab = new TerminalTabViewModel(this, sessions);
+        Tabs.Add(tab);
+        SelectedTab = tab;
+        foreach (var session in sessions)
+            session.Start();
+        OnPropertyChanged(nameof(LiveSessionNote));
+        TerminalFocusRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// Splits <paramref name="pane"/>: Horizontal puts the new pane to the right, Vertical below.
+    /// With no profile, the new pane connects to the same server.
+    /// </summary>
+    public void Split(TerminalTabViewModel tab, TerminalPaneViewModel pane, Orientation orientation, ServerProfile? profile = null)
+    {
+        if (IsLocked)
+            return;
+        profile ??= SavedProfile(pane.Session.Profile.Id) ?? pane.Session.Profile;
+        if (OpenSession(profile) is not { } session)
+            return;
+        tab.AddSplit(pane, orientation, session);
+        session.Start();
+        OnPropertyChanged(nameof(LiveSessionNote));
+        TerminalFocusRequested?.Invoke();
+    }
+
+    /// <summary>Saved servers, for the "split with…" menus.</summary>
+    public IReadOnlyList<ServerProfile> SavedServers =>
+        _data?.Servers.OrderBy(s => s.Group, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase).ToList()
+        ?? new List<ServerProfile>();
+
+    private ServerProfile? SavedProfile(Guid id) => _data?.Servers.FirstOrDefault(s => s.Id == id);
+
+    private SshSession? OpenSession(ServerProfile profile)
+    {
+        if (_data == null)
+            return null;
         try
         {
-            jumpHosts = JumpHostResolver.Resolve(profile, _data.Servers);
+            return _sessions.Open(profile, JumpHostResolver.Resolve(profile, _data.Servers));
         }
         catch (JumpHostConfigurationException ex)
         {
             _ = _dialogs.AlertAsync("Can't connect", ex.Message);
+            return null;
+        }
+    }
+
+    // ---------------------------------------------------------------- combining tabs
+
+    /// <summary>The selected terminal tab plus any Ctrl+clicked ones, in tab order.</summary>
+    public IReadOnlyList<TerminalTabViewModel> CombineCandidates =>
+        Tabs.OfType<TerminalTabViewModel>().Where(t => t.IsMarked || t == SelectedTab).ToList();
+
+    public bool CanCombine => CombineCandidates.Count >= 2;
+
+    public string CombineLabel => $"Combine {CombineCandidates.Count} tabs into a split";
+
+    /// <summary>Ctrl+click on a tab header: mark or unmark it for combining.</summary>
+    public void ToggleMark(TerminalTabViewModel tab)
+    {
+        if (tab == SelectedTab)
+            return; // the selected tab is always included
+        tab.IsMarked = !tab.IsMarked;
+        OnCombineChanged();
+    }
+
+    public void ClearMarks()
+    {
+        foreach (var tab in Tabs)
+            tab.IsMarked = false;
+        OnCombineChanged();
+    }
+
+    partial void OnSelectedTabChanged(TabViewModel? value) => OnCombineChanged();
+
+    private void OnCombineChanged()
+    {
+        OnPropertyChanged(nameof(CanCombine));
+        OnPropertyChanged(nameof(CombineLabel));
+        CombineMarkedCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCombine))]
+    private void CombineMarked() => CombineTabs(CombineCandidates);
+
+    /// <summary>Merges tabs into one split tab (each keeps its layout). No session is reconnected.</summary>
+    public void CombineTabs(IReadOnlyList<TerminalTabViewModel> tabs)
+    {
+        var ordered = Tabs.OfType<TerminalTabViewModel>().Where(tabs.Contains).ToList();
+        if (ordered.Count < 2)
+            return;
+        var focusFrom = SelectedTab as TerminalTabViewModel;
+        var combined = TerminalTabViewModel.Combine(this, ordered, ordered.Contains(focusFrom!) ? focusFrom : null);
+        var index = Tabs.IndexOf(ordered[0]);
+        ClearMarks();
+        foreach (var tab in ordered)
+        {
+            tab.Detach();
+            Tabs.Remove(tab);
+        }
+        Tabs.Insert(index, combined);
+        SelectedTab = combined;
+        RefreshAppearance();
+        TerminalFocusRequested?.Invoke();
+    }
+
+    /// <summary>Moves one pane out into its own tab, next to the current one. No reconnect.</summary>
+    public void MovePaneToNewTab(TerminalTabViewModel tab, TerminalPaneViewModel pane)
+    {
+        if (tab.Panes.Count <= 1)
+            return;
+        tab.RemovePane(pane);
+        var single = new TerminalTabViewModel(this, new[] { pane.Session });
+        Tabs.Insert(Tabs.IndexOf(tab) + 1, single);
+        SelectedTab = single;
+        RefreshAppearance();
+        TerminalFocusRequested?.Invoke();
+    }
+
+    /// <summary>Turns every pane of a split tab into its own tab. No reconnect.</summary>
+    public void SeparatePanes(TerminalTabViewModel tab)
+    {
+        if (tab.Panes.Count <= 1)
+            return;
+        var index = Tabs.IndexOf(tab);
+        var sessions = tab.Panes.Select(p => p.Session).ToList();
+        tab.Detach();
+        Tabs.Remove(tab);
+        TerminalTabViewModel? first = null;
+        foreach (var session in sessions)
+        {
+            var single = new TerminalTabViewModel(this, new[] { session });
+            Tabs.Insert(index++, single);
+            first ??= single;
+        }
+        SelectedTab = first;
+        RefreshAppearance();
+        TerminalFocusRequested?.Invoke();
+    }
+
+    public async Task ClosePaneAsync(TerminalTabViewModel tab, TerminalPaneViewModel pane)
+    {
+        if (tab.Panes.Count <= 1)
+        {
+            await CloseTabAsync(tab);
             return;
         }
-        var session = _sessions.Open(profile, jumpHosts);
-        var tab = new TerminalTabViewModel(session, this);
-        Tabs.Add(tab);
-        SelectedTab = tab;
-        session.Start();
+        if (pane.Session.State == SessionState.Connected &&
+            !await _dialogs.ConfirmAsync("Close pane", $"Disconnect from {pane.Title}?", "Disconnect"))
+            return;
+        tab.RemovePane(pane);
+        TerminalFocusRequested?.Invoke();
+        await _sessions.CloseAsync(pane.Session);
         OnPropertyChanged(nameof(LiveSessionNote));
     }
 
     public async Task CloseTabAsync(TerminalTabViewModel tab)
     {
-        if (tab.Session.State == SessionState.Connected &&
-            !await _dialogs.ConfirmAsync("Close session", $"Disconnect from {tab.Title}?", "Disconnect"))
+        var connected = tab.Panes.Count(p => p.Session.State == SessionState.Connected);
+        if (connected > 0 && !await _dialogs.ConfirmAsync("Close tab",
+                connected == 1 ? $"Disconnect from {tab.Title}?" : $"Disconnect all {connected} sessions in this tab?", "Disconnect"))
             return;
 
         var index = Tabs.IndexOf(tab);
@@ -226,7 +390,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (SelectedTab == null || SelectedTab == tab)
             SelectedTab = Tabs.Count > 0 ? Tabs[Math.Clamp(index - 1, 0, Tabs.Count - 1)] : null;
         tab.Detach();
-        await _sessions.CloseAsync(tab.Session);
+        OnCombineChanged();
+        await Task.WhenAll(tab.Panes.Select(p => _sessions.CloseAsync(p.Session)));
         OnPropertyChanged(nameof(LiveSessionNote));
     }
 
@@ -240,10 +405,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (_data == null)
             return;
         var font = FontFamily.Parse(Settings.FontFamily);
-        foreach (var tab in Tabs.OfType<TerminalTabViewModel>())
+        foreach (var pane in Tabs.OfType<TerminalTabViewModel>().SelectMany(t => t.Panes))
         {
-            var saved = _data.Servers.FirstOrDefault(s => s.Id == tab.Session.Profile.Id) ?? tab.Session.Profile;
-            tab.ApplyAppearance(ResolveTheme(saved), font, Settings.FontSize);
+            var saved = SavedProfile(pane.Session.Profile.Id) ?? pane.Session.Profile;
+            pane.ApplyAppearance(ResolveTheme(saved), font, Settings.FontSize);
         }
     }
 

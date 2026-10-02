@@ -23,14 +23,15 @@ public sealed class SshTestServer : IDisposable
 
     public static bool IsAvailable { get; } = CheckAvailable();
 
-    public static SshTestServer? TryStart(bool withClientKey = false)
+    /// <param name="clientKeyPassphrase">Encrypts the generated client key with this passphrase.</param>
+    public static SshTestServer? TryStart(bool withClientKey = false, string clientKeyPassphrase = "")
     {
         if (!IsAvailable)
             return null;
         var server = new SshTestServer { Port = FreePort() };
         server.HostKeyFile = Path.Combine(server._workDir, "host_key");
-        if (withClientKey)
-            server.ClientPrivateKey = server.GenerateClientKey();
+        if (withClientKey || clientKeyPassphrase.Length > 0)
+            server.ClientPrivateKey = server.GenerateClientKey(clientKeyPassphrase);
         server.Start();
         return server;
     }
@@ -93,11 +94,11 @@ public sealed class SshTestServer : IDisposable
         return port;
     }
 
-    private string GenerateClientKey()
+    private string GenerateClientKey(string passphrase)
     {
         var keyFile = Path.Combine(_workDir, "client_key");
         var psi = new ProcessStartInfo("ssh-keygen") { RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var arg in new[] { "-q", "-t", "ed25519", "-N", "", "-f", keyFile })
+        foreach (var arg in new[] { "-q", "-t", "ed25519", "-N", passphrase, "-f", keyFile })
             psi.ArgumentList.Add(arg);
         using var process = Process.Start(psi)!;
         process.WaitForExit(10_000);

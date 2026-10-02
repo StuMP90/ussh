@@ -34,6 +34,7 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         _password = profile.Password ?? "";
         _privateKey = profile.PrivateKey ?? "";
         _privateKeyPassphrase = profile.PrivateKeyPassphrase ?? "";
+        _askForPassphrase = profile.AskForPassphrase;
         _hostKeyFingerprint = profile.HostKeyFingerprint;
         _keepAliveSeconds = profile.KeepAliveSeconds;
         _connectTimeoutSeconds = profile.ConnectTimeoutSeconds;
@@ -98,6 +99,13 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     [ObservableProperty] private string _privateKey;
     [ObservableProperty] private string _privateKeyPassphrase;
 
+    /// <summary>Prompt for the passphrase on connect instead of storing it (memory only).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowStoredPassphrase))]
+    private bool _askForPassphrase;
+
+    public bool ShowStoredPassphrase => !AskForPassphrase;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HostKeyDisplay), nameof(HasHostKey))]
     private string? _hostKeyFingerprint;
@@ -121,7 +129,8 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     private void OnAnyPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(IsDirty) or nameof(ValidationError) or nameof(Heading)
-            or nameof(IsPasswordAuth) or nameof(IsKeyAuth) or nameof(HostKeyDisplay) or nameof(HasHostKey))
+            or nameof(IsPasswordAuth) or nameof(IsKeyAuth) or nameof(HostKeyDisplay) or nameof(HasHostKey)
+            or nameof(ShowStoredPassphrase))
             return;
         UpdateDirty();
         if (e.PropertyName is nameof(Name) or nameof(Host) or nameof(Username))
@@ -177,7 +186,9 @@ public sealed partial class ServerEditorViewModel : ObservableObject
             return "Port must be between 1 and 65535.";
         if (string.IsNullOrWhiteSpace(Username))
             return "Username is required.";
-        if (IsKeyAuth && KeyValidator.Validate(PrivateKey, PrivateKeyPassphrase) is { } keyError)
+        if (IsKeyAuth && (AskForPassphrase
+                ? KeyValidator.ValidateEncrypted(PrivateKey)
+                : KeyValidator.Validate(PrivateKey, PrivateKeyPassphrase)) is { } keyError)
             return keyError;
 
         foreach (var tunnel in Tunnels)
@@ -205,7 +216,9 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         // Keep only the secret for the chosen method.
         Password = IsPasswordAuth && Password.Length > 0 ? Password : null,
         PrivateKey = IsKeyAuth && PrivateKey.Length > 0 ? PrivateKey.Trim() : null,
-        PrivateKeyPassphrase = IsKeyAuth && PrivateKeyPassphrase.Length > 0 ? PrivateKeyPassphrase : null,
+        // With "ask every time" the passphrase is never stored, even if one was typed earlier.
+        PrivateKeyPassphrase = IsKeyAuth && !AskForPassphrase && PrivateKeyPassphrase.Length > 0 ? PrivateKeyPassphrase : null,
+        AskForPassphrase = IsKeyAuth && AskForPassphrase,
         HostKeyFingerprint = HostKeyFingerprint,
         KeepAliveSeconds = (int)KeepAliveSeconds,
         ConnectTimeoutSeconds = (int)ConnectTimeoutSeconds,

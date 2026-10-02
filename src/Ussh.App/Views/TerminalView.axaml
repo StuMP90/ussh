@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Ussh.App.ViewModels"
+             xmlns:views="using:Ussh.App.Views"
+             xmlns:controls="using:Ussh.App.Controls"
+             x:Class="Ussh.App.Views.TerminalView"
+             x:DataType="vm:TerminalTabViewModel">
+  <UserControl.DataTemplates>
+    <DataTemplate DataType="vm:SplitViewModel">
+      <controls:SplitPanel Orientation="{Binding Orientation}" First="{Binding First}"
+                           Second="{Binding Second}" Ratio="{Binding Ratio}" />
+    </DataTemplate>
+    <DataTemplate DataType="vm:TerminalPaneViewModel">
+      <views:TerminalPaneView />
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <DockPanel>
+    <!-- Shown only with several panes; turns amber while broadcasting. -->
+    <Border DockPanel.Dock="Top" Padding="10,4" IsVisible="{Binding HasMultiplePanes}"
+            Background="{Binding IsBroadcasting, Converter={x:Static views:TerminalView.BroadcastBackground}}">
+      <DockPanel>
+        <ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding IsBroadcasting}"
+                      OnContent="Broadcast on" OffContent="Broadcast input"
+                      ToolTip.Tip="Type into every pane at once (Ctrl+Shift+B)" />
+        <TextBlock Text="{Binding PaneBarText}" VerticalAlignment="Center" FontSize="12" />
+      </DockPanel>
+    </Border>
+    <ContentControl Content="{Binding Root}" />
+  </DockPanel>
+</UserControl>

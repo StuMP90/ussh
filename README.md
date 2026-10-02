@@ -13,6 +13,15 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
 - **Admin password**: all server configuration, including passwords and keys, lives in one
   encrypted vault. The admin password is required to view or edit servers and to open
   connections. Auto-lock after inactivity; locking does **not** drop open sessions.
+- **Split panes**: split a tab right or down, with the same server or any saved one, and
+  drag the dividers. Each pane is its own session (own reconnect, theme and status).
+  Ctrl+click several servers and Connect to open them side by side in one tab (4+ as a grid).
+  **Broadcast input** sends typing to every pane in the tab, e.g. a load-balanced pair, with
+  amber borders while it's on.
+- **Combine and separate tabs** without reconnecting: Ctrl+click tab headers and press
+  *Combine N tabs into a split*, or right-click a tab → *Combine with*. Each tab's existing
+  split layout is kept. *Move to new tab* (pane menu) and *Separate panes into tabs* (tab
+  menu) reverse it. Screens, scrollback and connections carry on untouched.
 - **Jump hosts (bastions)**: reach a server through another saved server, which can itself
   use a jump host (chains up to 8 hops). Each hop uses that server's own credentials and
   host-key check, and the whole chain reconnects together. Loops are prevented in the editor.
@@ -58,6 +67,11 @@ server.
 - While unlocked, decrypted settings are held in memory. Locking drops them. Each open
   session keeps its own copy of its server's credentials so that it can reconnect while
   locked.
+- Key passphrases can be stored in the vault, or set per server to **Ask every time (never
+  stored)**. A prompted passphrase is checked locally before connecting and is kept in memory
+  only: the session that used it keeps it for its own auto-reconnects, and a shared in-memory
+  cache lets new panes and tabs for that server reuse it until uSSH is locked or closed.
+  Nothing prompts while locked.
 - Logs (`logs/` next to the vault) never contain secrets.
 
 ## Project layout
@@ -104,7 +118,8 @@ dotnet test
   bastion restart and a bastion auth failure, tunnels through a jump host).
 - `Ussh.App.Tests`: drives the real UI headlessly: first-run password, server management,
   lock/unlock persistence, validation, a live terminal tab, tab focus and shortcuts, a
-  bastion configured in the editor, and per-server themes (checked by pixel colour). Set
+  bastion configured in the editor, per-server themes (checked by pixel colour), split panes
+  (shortcuts, Alt+Arrow navigation, broadcast, close) and multi-select side-by-side connect. Set
   `USSH_SCREENSHOT_DIR` to keep the screenshots.
 
 ### Soak test
@@ -161,6 +176,11 @@ The tarball is self-contained and includes an `install.sh` (installs to `~/.loca
 | Ctrl+Tab / Ctrl+PageDown | Next tab |
 | Ctrl+Shift+Tab / Ctrl+PageUp | Previous tab |
 | Alt+1 … Alt+8 / Alt+9 | Go to tab 1–8 / last tab |
+| Ctrl+click tab headers | Mark tabs to combine into one split tab |
+| Ctrl+Shift+E / Ctrl+Shift+O | Split pane right / down (same server; right-click or ☰ for other servers) |
+| Alt+Arrow | Move to the neighbouring pane (with several panes) |
+| Ctrl+Shift+W | Close pane (or the tab, if it's the last pane) |
+| Ctrl+Shift+B | Broadcast input to all panes in the tab (toggle) |
 | Ctrl+Shift+C / Ctrl+Insert | Copy selection |
 | Ctrl+Shift+V / Shift+Insert / middle-click | Paste |
 | Shift+PageUp / Shift+PageDown | Scroll back / forward |
@@ -172,8 +192,8 @@ The tarball is self-contained and includes an `install.sh` (installs to `~/.loca
 
 ## Known limitations and roadmap
 
-- Not yet: SFTP browser, agent forwarding, PuTTY `.ppk` keys (convert with PuTTYgen), split
-  panes, custom/imported themes, and per-server font settings.
+- Not yet: SFTP browser, PuTTY `.ppk` keys (convert with PuTTYgen), custom/imported themes,
+  and per-server font settings. Pane layouts aren't saved between runs.
 - Line reflow on resize is disabled (the upstream reflow code is unreliable); long lines are
   truncated when the window narrows, like xterm.
 - Rendering redraws the whole visible screen when anything changes. That's fine for normal

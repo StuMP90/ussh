@@ -35,7 +35,8 @@
       <TextBox DockPanel.Dock="Top" Watermark="Search servers" Text="{Binding Filter}" Margin="0,0,0,8" />
       <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,8,0,0">
         <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                Content="Connect" Command="{Binding ConnectCommand}" />
+                Content="{Binding ConnectLabel}" Command="{Binding ConnectCommand}"
+                ToolTip.Tip="Ctrl+click several servers to open them side by side in one tab" />
         <UniformGrid Columns="3" ColumnSpacing="6">
           <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Add" Command="{Binding AddServerCommand}" />
           <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Duplicate" Command="{Binding DuplicateServerCommand}" />
@@ -43,7 +44,10 @@
         </UniformGrid>
         <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Settings" Command="{Binding ShowSettingsCommand}" />
       </StackPanel>
+      <TextBlock DockPanel.Dock="Bottom" Classes="muted" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
+                 Text="Tip: Ctrl+click several servers, then Connect, to open them side by side." />
       <ListBox x:Name="ServerList" ItemsSource="{Binding FilteredServers}" SelectedItem="{Binding SelectedServer}"
+               SelectionMode="Multiple" SelectionChanged="OnServerSelectionChanged"
                DoubleTapped="OnServerDoubleTapped">
         <ListBox.ItemTemplate>
           <DataTemplate DataType="vm:ServerItemViewModel">
@@ -113,8 +117,14 @@
           <TextBox Grid.Column="1" Text="{Binding PrivateKey}" AcceptsReturn="True" TextWrapping="NoWrap"
                    Height="120" FontFamily="Cascadia Mono, DejaVu Sans Mono, Consolas, monospace" FontSize="11"
                    Watermark="-----BEGIN OPENSSH PRIVATE KEY----- …" />
-          <TextBlock Classes="label" Grid.Row="1" Text="Key passphrase" />
-          <TextBox Grid.Row="1" Grid.Column="1" PasswordChar="●" Text="{Binding PrivateKeyPassphrase}" Watermark="Leave empty if the key isn't encrypted" />
+          <TextBlock Classes="label" Grid.Row="1" Text="Key passphrase" VerticalAlignment="Top" Margin="0,6,12,0" />
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+            <TextBox PasswordChar="●" Text="{Binding PrivateKeyPassphrase}" IsVisible="{Binding ShowStoredPassphrase}"
+                     Watermark="Leave empty if the key isn't encrypted. Stored encrypted in the vault." />
+            <CheckBox IsChecked="{Binding AskForPassphrase}" Content="Ask every time (never stored)" />
+            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding AskForPassphrase}"
+                       Text="You'll be asked when connecting. The answer is kept in memory only: open sessions reuse it to reconnect, and new panes for this server reuse it until uSSH is locked or closed." />
+          </StackPanel>
         </Grid>
 
         <TextBlock Classes="h2" Text="Jump host" />

@@ -19,6 +19,45 @@ public sealed class DialogService
     public Task AlertAsync(string title, string message) =>
         OnUiThread(() => ShowAsync(title, message, "OK", null, false));
 
+    /// <summary>Asks for a secret (masked). Returns null if cancelled. Nothing is stored.</summary>
+    public Task<string?> PromptSecretAsync(string title, string message, string? error, string watermark) =>
+        OnUiThread(async () =>
+        {
+            var dialog = new Window
+            {
+                Title = title,
+                Width = 460,
+                SizeToContent = SizeToContent.Height,
+                CanResize = false,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ShowInTaskbar = false,
+            };
+            var input = new TextBox { PasswordChar = '●', Watermark = watermark };
+            var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 90 };
+            ok.Classes.Add("accent");
+            var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 90 };
+            string? result = null;
+            ok.Click += (_, _) => { result = input.Text ?? ""; dialog.Close(); };
+            cancel.Click += (_, _) => dialog.Close();
+
+            var panel = new StackPanel { Margin = new Avalonia.Thickness(20), Spacing = 10 };
+            panel.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap });
+            if (error != null)
+                panel.Children.Add(new TextBlock { Text = error, Foreground = Brushes.IndianRed, TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(input);
+            panel.Children.Add(new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Spacing = 8,
+                Children = { cancel, ok },
+            });
+            dialog.Content = panel;
+            dialog.Opened += (_, _) => input.Focus();
+            await dialog.ShowDialog(_owner);
+            return result;
+        });
+
     public async Task<string?> PickFileTextAsync(string title)
     {
         var files = await _owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

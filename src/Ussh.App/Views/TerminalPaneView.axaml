@@ -2,8 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Ussh.App.ViewModels"
              xmlns:controls="using:Ussh.App.Controls"
-             x:Class="Ussh.App.Views.TerminalView"
-             x:DataType="vm:TerminalTabViewModel">
+             x:Class="Ussh.App.Views.TerminalPaneView"
+             x:DataType="vm:TerminalPaneViewModel">
+  <!-- Border: accent when focused (with several panes), amber while broadcasting. -->
+  <Border BorderThickness="2" BorderBrush="{Binding Highlight}">
   <DockPanel>
     <!-- Status bar -->
     <Border DockPanel.Dock="Bottom" Padding="10,4" Background="#10FFFFFF">
@@ -11,6 +13,7 @@
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
           <Button Content="Reconnect" Command="{Binding ReconnectCommand}" Padding="8,2" FontSize="12" />
           <Button Content="Disconnect" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsConnected}" Padding="8,2" FontSize="12" />
+          <Button x:Name="MenuButton" Content="☰" Padding="8,2" FontSize="12" ToolTip.Tip="Split, broadcast, close pane" Click="OnMenuButtonClick" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
           <TextBlock Text="{Binding Endpoint}" FontSize="12" />
@@ -34,6 +37,8 @@
                               Session="{Binding Session}"
                               FontFamily="{Binding FontFamily}"
                               FontSize="{Binding FontSize}"
-                              ColorScheme="{Binding Theme}" />
+                              ColorScheme="{Binding Theme}"
+                              InputSink="{Binding SendInput}" />
   </DockPanel>
+  </Border>
 </UserControl>

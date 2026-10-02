@@ -19,6 +19,7 @@ import socket
 import struct
 import sys
 import termios
+import time
 import fcntl
 import threading
 
@@ -217,6 +218,12 @@ def handle(client, args, host_key):
     def session(channel):
         if server.shell_requested.wait(10):
             run_shell(channel, server)
+        # Like sshd: after the shell's channel closes, let the client hang up first. Closing
+        # straight away can reset the connection before the client has read the channel close.
+        for _ in range(50):
+            if not transport.is_active():
+                break
+            time.sleep(0.1)
         transport.close()
 
     while transport.is_active():

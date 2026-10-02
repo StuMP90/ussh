@@ -7,24 +7,26 @@ using Ussh.Core.Ssh;
 
 namespace Ussh.App.ViewModels;
 
-public sealed partial class TerminalTabViewModel : TabViewModel
+/// <summary>One terminal (one SSH session) inside a tab. A tab holds one or more panes.</summary>
+public sealed partial class TerminalPaneViewModel : LayoutNode
 {
     private static readonly IBrush ConnectedBrush = new SolidColorBrush(Color.Parse("#40C48C"));
     private static readonly IBrush PendingBrush = new SolidColorBrush(Color.Parse("#E0B040"));
     private static readonly IBrush DownBrush = new SolidColorBrush(Color.Parse("#E05555"));
+    private static readonly IBrush FocusBrush = new SolidColorBrush(Color.Parse("#4A90E2"));
+    private static readonly IBrush BroadcastBrush = new SolidColorBrush(Color.Parse("#F0A030"));
 
-    private readonly MainWindowViewModel _main;
     private readonly DispatcherTimer _uptimeTimer;
 
-    public TerminalTabViewModel(SshSession session, MainWindowViewModel main)
+    public TerminalPaneViewModel(SshSession session, TerminalTabViewModel tab, MainWindowViewModel main)
     {
         Session = session;
-        _main = main;
+        Tab = tab;
         Title = session.Profile.DisplayName;
+        SendInput = text => Tab.SendInput(this, text);
         _fontFamily = FontFamily.Parse(main.Settings.FontFamily);
         _fontSize = main.Settings.FontSize;
         _theme = main.ResolveTheme(session.Profile);
-        CloseTabCommand = new AsyncRelayCommand(() => _main.CloseTabAsync(this));
 
         session.StateChanged += OnStateChanged;
         session.Emulator.TitleChanged += OnRemoteTitleReceived;
@@ -34,11 +36,27 @@ public sealed partial class TerminalTabViewModel : TabViewModel
     }
 
     public SshSession Session { get; }
+    public TerminalTabViewModel Tab { get; }
+    public string Title { get; }
+
+    /// <summary>Where typed and pasted text goes: this pane, or every pane while broadcasting.</summary>
+    public Action<string> SendInput { get; }
+
+    [ObservableProperty] private IBrush? _indicator;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Highlight))]
+    private bool _isFocused;
+
+    /// <summary>Pane border: accent when focused among several panes, amber on every pane while broadcasting.</summary>
+    public IBrush Highlight => Tab.IsBroadcasting ? BroadcastBrush
+        : IsFocused && Tab.HasMultiplePanes ? FocusBrush
+        : Brushes.Transparent;
+
+    public void RefreshHighlight() => OnPropertyChanged(nameof(Highlight));
     [ObservableProperty] private FontFamily _fontFamily;
     [ObservableProperty] private double _fontSize;
     [ObservableProperty] private TerminalTheme _theme;
-    public override bool CanClose => true;
-    public override IAsyncRelayCommand CloseTabCommand { get; }
 
     [ObservableProperty] private string _statusMessage = "";
     [ObservableProperty] private bool _isConnected;
@@ -65,6 +83,9 @@ public sealed partial class TerminalTabViewModel : TabViewModel
 
     [RelayCommand]
     private void Disconnect() => Session.Disconnect();
+
+    [RelayCommand]
+    private Task CloseAsync() => Tab.Main.ClosePaneAsync(Tab, this);
 
     /// <summary>Stops UI updates from a closed session.</summary>
     public void Detach()
@@ -96,6 +117,7 @@ public sealed partial class TerminalTabViewModel : TabViewModel
             ? null
             : string.Join("   ", tunnels.Select(t => (t.Active ? "● " : "✕ ") + t.Definition.Describe() + (t.Error != null ? $" ({t.Error})" : "")));
         OnPropertyChanged(nameof(Uptime));
+        Tab.OnPaneStateChanged();
     }
 
     private static string FormatDuration(TimeSpan span) =>

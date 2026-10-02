@@ -15,14 +15,16 @@ public sealed class SessionManager : IAsyncDisposable
     private static readonly TimeSpan SleepThreshold = TimeSpan.FromSeconds(30);
 
     private readonly IHostKeyVerifier _hostKeyVerifier;
+    private readonly IPassphraseProvider? _passphrases;
     private readonly List<SshSession> _sessions = new();
     private readonly object _gate = new();
     private readonly Timer _healthTimer;
     private DateTime _lastTickUtc = DateTime.UtcNow;
 
-    public SessionManager(IHostKeyVerifier hostKeyVerifier)
+    public SessionManager(IHostKeyVerifier hostKeyVerifier, IPassphraseProvider? passphrases = null)
     {
         _hostKeyVerifier = hostKeyVerifier;
+        _passphrases = passphrases;
         _healthTimer = new Timer(_ => HealthTick(), null, HealthInterval, HealthInterval);
         NetworkChange.NetworkAddressChanged += OnNetworkChanged;
     }
@@ -41,7 +43,7 @@ public sealed class SessionManager : IAsyncDisposable
     /// <param name="jumpHosts">From <see cref="JumpHostResolver.Resolve"/>, outermost first.</param>
     public SshSession Open(ServerProfile profile, IReadOnlyList<ServerProfile>? jumpHosts = null)
     {
-        var session = new SshSession(profile, _hostKeyVerifier, jumpHosts);
+        var session = new SshSession(profile, _hostKeyVerifier, jumpHosts, _passphrases);
         session.HostKeyTrusted += (s, id, fp) => HostKeyTrusted?.Invoke(s, id, fp);
         lock (_gate)
             _sessions.Add(session);

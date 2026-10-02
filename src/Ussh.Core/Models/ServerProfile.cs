@@ -26,6 +26,12 @@ public sealed class ServerProfile
     public string? PrivateKey { get; set; }
     public string? PrivateKeyPassphrase { get; set; }
 
+    /// <summary>
+    /// Never store the key passphrase: prompt for it when connecting and keep it in memory only
+    /// (see <see cref="Ssh.IPassphraseProvider"/>). <see cref="PrivateKeyPassphrase"/> stays null.
+    /// </summary>
+    public bool AskForPassphrase { get; set; }
+
     /// <summary>SHA256 host key fingerprint accepted by the user (trust on first use).</summary>
     public string? HostKeyFingerprint { get; set; }
 

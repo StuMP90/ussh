@@ -124,28 +124,28 @@ public sealed class UiTests : IDisposable
 
         vm.Connect(profile);
         var tab = Assert.IsType<TerminalTabViewModel>(vm.SelectedTab);
-        await WaitUntil(() => tab.Session.State == SessionState.Connected, "connected");
+        await WaitUntil(() => tab.FocusedPane.Session.State == SessionState.Connected, "connected");
 
         // Give the terminal its real size, then draw something colourful.
         await Pump(300);
-        tab.Session.Send(
+        tab.FocusedPane.Session.Send(
             "clear; printf '\\e[1;31mred \\e[0;32mgreen \\e[33myellow \\e[34mblue \\e[35mmagenta \\e[36mcyan\\e[0m\\n'; " +
             "printf '\\e[38;2;255;128;0mtruecolor orange\\e[0m \\e[44;97m white on blue \\e[0m \\e[7m inverse \\e[0m \\e[4munderline\\e[0m\\n'; " +
             "printf 'wide: 漢字 emoji: 😀 box: ┌─┐ └─┘\\n'; seq -s ' ' 1 40; echo; stty size\r");
-        await WaitUntil(() => ScreenContains(tab.Session, "truecolor orange") && ScreenContains(tab.Session, " 40"), "output");
+        await WaitUntil(() => ScreenContains(tab.FocusedPane.Session, "truecolor orange") && ScreenContains(tab.FocusedPane.Session, " 40"), "output");
         await Pump(300);
 
         var terminal = window.GetVisualDescendants().OfType<TerminalControl>().Single();
         Assert.True(terminal.Bounds.Width > 200);
         int rows, cols;
-        lock (tab.Session.Emulator.SyncRoot)
-            (rows, cols) = (tab.Session.Emulator.Terminal.Rows, tab.Session.Emulator.Terminal.Cols);
-        Assert.True(ScreenContains(tab.Session, $"{rows} {cols}"), "server pty size should match the rendered terminal");
+        lock (tab.FocusedPane.Session.Emulator.SyncRoot)
+            (rows, cols) = (tab.FocusedPane.Session.Emulator.Terminal.Rows, tab.FocusedPane.Session.Emulator.Terminal.Cols);
+        Assert.True(ScreenContains(tab.FocusedPane.Session, $"{rows} {cols}"), "server pty size should match the rendered terminal");
         Save(window, "05-terminal");
 
         // Closing a connected tab asks for confirmation; disconnect first so no dialog opens.
-        tab.Session.Disconnect();
-        await WaitUntil(() => tab.Session.State == SessionState.Disconnected, "disconnected");
+        tab.FocusedPane.Session.Disconnect();
+        await WaitUntil(() => tab.FocusedPane.Session.State == SessionState.Disconnected, "disconnected");
         await Pump(100);
         Save(window, "06-disconnected");
         await vm.CloseTabAsync(tab);
@@ -168,7 +168,7 @@ public sealed class UiTests : IDisposable
         var first = (TerminalTabViewModel)vm.SelectedTab!;
         vm.Connect(profile);
         var second = (TerminalTabViewModel)vm.SelectedTab!;
-        await WaitUntil(() => first.Session.State == SessionState.Connected && second.Session.State == SessionState.Connected, "both connected");
+        await WaitUntil(() => first.FocusedPane.Session.State == SessionState.Connected && second.FocusedPane.Session.State == SessionState.Connected, "both connected");
         await Pump(200);
 
         // Mouse: Servers -> second terminal -> first terminal (terminal-to-terminal reuses the view).
@@ -177,22 +177,22 @@ public sealed class UiTests : IDisposable
         Assert.Null(FocusedSession(window));
         ClickTab(window, second);
         await Pump(100);
-        Assert.Same(second.Session, FocusedSession(window));
+        Assert.Same(second.FocusedPane.Session, FocusedSession(window));
         ClickTab(window, first);
         await Pump(100);
-        Assert.Same(first.Session, FocusedSession(window));
+        Assert.Same(first.FocusedPane.Session, FocusedSession(window));
 
         // Typing goes to the focused tab's server.
         window.KeyTextInput("echo typed-into-first");
         window.KeyPress(Key.Enter, RawInputModifiers.None);
-        await WaitUntil(() => ScreenContainsLine(first.Session, "typed-into-first"), "typed text echoed");
-        Assert.False(ScreenContainsLine(second.Session, "typed-into-first"));
+        await WaitUntil(() => ScreenContainsLine(first.FocusedPane.Session, "typed-into-first"), "typed text echoed");
+        Assert.False(ScreenContainsLine(second.FocusedPane.Session, "typed-into-first"));
 
         // Keyboard shortcuts, pressed while a terminal has focus.
         window.KeyPress(Key.Tab, RawInputModifiers.Control);
         await Pump(100);
         Assert.Same(second, vm.SelectedTab);
-        Assert.Same(second.Session, FocusedSession(window));
+        Assert.Same(second.FocusedPane.Session, FocusedSession(window));
         window.KeyPress(Key.Tab, RawInputModifiers.Control);
         await Pump(100);
         Assert.Same(vm.Servers, vm.SelectedTab); // wraps around
@@ -202,7 +202,7 @@ public sealed class UiTests : IDisposable
         window.KeyPress(Key.D2, RawInputModifiers.Alt);
         await Pump(100);
         Assert.Same(first, vm.SelectedTab);
-        Assert.Same(first.Session, FocusedSession(window));
+        Assert.Same(first.FocusedPane.Session, FocusedSession(window));
         window.KeyPress(Key.D9, RawInputModifiers.Alt);
         await Pump(100);
         Assert.Same(second, vm.SelectedTab);
@@ -212,7 +212,7 @@ public sealed class UiTests : IDisposable
         Assert.True(vm.IsLocked);
 
         foreach (var tab in new[] { first, second })
-            tab.Session.Disconnect();
+            tab.FocusedPane.Session.Disconnect();
         await sessions.DisposeAsync();
     }
 
@@ -251,16 +251,16 @@ public sealed class UiTests : IDisposable
         Assert.False(vm.Servers.Editor!.IsDirty, "opening a saved server must not mark it as changed");
         await vm.Servers.ConnectCommand.ExecuteAsync(null);
         var tab = Assert.IsType<TerminalTabViewModel>(vm.SelectedTab);
-        await WaitUntil(() => tab.Session.State == SessionState.Connected, "connected via bastion");
-        Assert.Contains("via bastion", tab.Endpoint);
-        tab.Session.Send("echo hello-from-inside\r");
-        await WaitUntil(() => ScreenContainsLine(tab.Session, "hello-from-inside"), "output via bastion");
+        await WaitUntil(() => tab.FocusedPane.Session.State == SessionState.Connected, "connected via bastion");
+        Assert.Contains("via bastion", tab.FocusedPane.Endpoint);
+        tab.FocusedPane.Session.Send("echo hello-from-inside\r");
+        await WaitUntil(() => ScreenContainsLine(tab.FocusedPane.Session, "hello-from-inside"), "output via bastion");
 
         // Both host keys were remembered on their own servers.
         await Pump(100);
         Assert.All(vm.Data!.Servers, s => Assert.NotNull(s.HostKeyFingerprint));
 
-        tab.Session.Disconnect();
+        tab.FocusedPane.Session.Disconnect();
         await sessions.DisposeAsync();
     }
 
@@ -289,12 +289,12 @@ public sealed class UiTests : IDisposable
 
         await vm.Servers.ConnectCommand.ExecuteAsync(null);
         var tab = Assert.IsType<TerminalTabViewModel>(vm.SelectedTab);
-        await WaitUntil(() => tab.Session.State == SessionState.Connected, "connected");
+        await WaitUntil(() => tab.FocusedPane.Session.State == SessionState.Connected, "connected");
         await Pump(300);
-        tab.Session.Send("clear; printf '\\e[31mred \\e[32mgreen \\e[34mblue \\e[1;37mbold white\\e[0m \\e[7m inverse \\e[0m\\n'; ls -la /\r");
-        await WaitUntil(() => ScreenContains(tab.Session, "bold white"), "output");
+        tab.FocusedPane.Session.Send("clear; printf '\\e[31mred \\e[32mgreen \\e[34mblue \\e[1;37mbold white\\e[0m \\e[7m inverse \\e[0m\\n'; ls -la /\r");
+        await WaitUntil(() => ScreenContains(tab.FocusedPane.Session, "bold white"), "output");
         await Pump(300);
-        Assert.Equal("Amber (P3 phosphor)", tab.Theme.Name);
+        Assert.Equal("Amber (P3 phosphor)", tab.FocusedPane.Theme.Name);
         AssertTerminalBackground(window, Color.Parse("#120A00"));
         Save(window, "09-amber");
 
@@ -302,13 +302,273 @@ public sealed class UiTests : IDisposable
         vm.SelectedTab = vm.Servers;
         vm.Servers.Editor!.SelectedTheme = vm.Servers.Editor.ThemeOptions.Single(o => o.Name == "Green (P1 phosphor)");
         vm.Servers.SaveServerCommand.Execute(null);
-        Assert.Equal("Green (P1 phosphor)", tab.Theme.Name);
+        Assert.Equal("Green (P1 phosphor)", tab.FocusedPane.Theme.Name);
         vm.SelectedTab = tab;
         await Pump(300);
         AssertTerminalBackground(window, Color.Parse("#011A07"));
         Save(window, "10-green");
 
-        tab.Session.Disconnect();
+        tab.FocusedPane.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task SplitPanesNavigateBroadcastAndClose()
+    {
+        var server = SshTestServer.TryStart();
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        var profile = AddServer(vm, "web1", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        vm.Connect(profile);
+        var tab = Assert.IsType<TerminalTabViewModel>(vm.SelectedTab);
+        await WaitUntil(() => tab.FocusedPane.Session.State == SessionState.Connected, "first pane");
+        await Pump(200);
+        Assert.False(tab.HasMultiplePanes);
+
+        // Ctrl+Shift+E: split right with the same server; the new pane gets the keyboard.
+        window.KeyPress(Key.E, RawInputModifiers.Control | RawInputModifiers.Shift);
+        await WaitUntil(() => tab.Panes.Count == 2 && tab.Panes.All(p => p.Session.State == SessionState.Connected), "split right");
+        await Pump(200);
+        var (left, right) = (tab.Panes[0], tab.Panes[1]);
+        Assert.Same(right, tab.FocusedPane);
+        Assert.Same(right.Session, FocusedSession(window));
+        Assert.Equal("web1 | web1", tab.Title);
+
+        // Alt+Left moves to the left pane; typing goes only there.
+        window.KeyPress(Key.Left, RawInputModifiers.Alt);
+        await Pump(100);
+        Assert.Same(left.Session, FocusedSession(window));
+        Assert.Same(left, tab.FocusedPane);
+        window.KeyTextInput("echo only-left");
+        window.KeyPress(Key.Enter, RawInputModifiers.None);
+        await WaitUntil(() => ScreenContainsLine(left.Session, "only-left"), "left output");
+        await Pump(300);
+        Assert.False(ScreenContainsLine(right.Session, "only-left"));
+
+        // Ctrl+Shift+B: broadcast to every pane.
+        window.KeyPress(Key.B, RawInputModifiers.Control | RawInputModifiers.Shift);
+        Assert.True(tab.IsBroadcasting);
+        window.KeyTextInput("echo to-both-panes");
+        window.KeyPress(Key.Enter, RawInputModifiers.None);
+        await WaitUntil(() => ScreenContainsLine(left.Session, "to-both-panes") && ScreenContainsLine(right.Session, "to-both-panes"), "broadcast output");
+        await Pump(200);
+        Save(window, "11-split-broadcast");
+        window.KeyPress(Key.B, RawInputModifiers.Control | RawInputModifiers.Shift);
+        Assert.False(tab.IsBroadcasting);
+
+        // Ctrl+Shift+O on the left pane: split down. Then navigate the 3-pane layout.
+        window.KeyPress(Key.O, RawInputModifiers.Control | RawInputModifiers.Shift);
+        await WaitUntil(() => tab.Panes.Count == 3 && tab.Panes.All(p => p.Session.State == SessionState.Connected), "split down");
+        await Pump(200);
+        var bottom = tab.Panes[2];
+        Assert.Same(bottom.Session, FocusedSession(window));
+        window.KeyPress(Key.Up, RawInputModifiers.Alt);
+        await Pump(100);
+        Assert.Same(left.Session, FocusedSession(window));
+        window.KeyPress(Key.Right, RawInputModifiers.Alt);
+        await Pump(100);
+        Assert.Same(right.Session, FocusedSession(window));
+        window.KeyPress(Key.Left, RawInputModifiers.Alt);
+        window.KeyPress(Key.Down, RawInputModifiers.Alt);
+        await Pump(100);
+        Assert.Same(bottom.Session, FocusedSession(window));
+        Save(window, "12-split-three");
+
+        // Ctrl+Shift+W closes the focused pane (disconnected first, so no confirmation dialog).
+        bottom.Session.Disconnect();
+        await WaitUntil(() => bottom.Session.State == SessionState.Disconnected, "bottom disconnected");
+        window.KeyPress(Key.W, RawInputModifiers.Control | RawInputModifiers.Shift);
+        await WaitUntil(() => tab.Panes.Count == 2, "pane closed");
+        await Pump(200);
+        Assert.Equal(new[] { left, right }, tab.Panes);
+        Assert.NotNull(FocusedSession(window));
+
+        foreach (var pane in tab.Panes)
+            pane.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task SelectingTwoServersConnectsThemSideBySide()
+    {
+        var server = SshTestServer.TryStart();
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        // Two "load-balanced" servers (the same test server under two names), one amber, one green.
+        AddServer(vm, "lb-node-a", "Load balanced", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        vm.Servers.Editor!.SelectedTheme = vm.Servers.Editor.ThemeOptions.Single(o => o.Name == "Amber (P3 phosphor)");
+        vm.Servers.SaveServerCommand.Execute(null);
+        AddServer(vm, "lb-node-b", "Load balanced", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        vm.Servers.Editor!.SelectedTheme = vm.Servers.Editor.ThemeOptions.Single(o => o.Name == "Green (P1 phosphor)");
+        vm.Servers.SaveServerCommand.Execute(null);
+
+        // Ctrl+click both in the list.
+        await Pump(100);
+        var list = window.GetVisualDescendants().OfType<ListBox>().Single(l => l.Name == "ServerList");
+        list.SelectedItems!.Clear();
+        foreach (var item in vm.Servers.FilteredServers)
+            list.SelectedItems.Add(item);
+        await Pump(100);
+        Assert.Equal(2, vm.Servers.SelectedServers.Count);
+        Assert.Equal("Connect 2 side by side", vm.Servers.ConnectLabel);
+
+        await vm.Servers.ConnectCommand.ExecuteAsync(null);
+        var tab = Assert.IsType<TerminalTabViewModel>(vm.SelectedTab);
+        Assert.Equal(2, tab.Panes.Count);
+        Assert.Equal("lb-node-a | lb-node-b", tab.Title);
+        Assert.Equal(new[] { "Amber (P3 phosphor)", "Green (P1 phosphor)" }, tab.Panes.Select(p => p.Theme.Name));
+        await WaitUntil(() => tab.Panes.All(p => p.Session.State == SessionState.Connected), "both connected");
+        await Pump(300);
+
+        tab.IsBroadcasting = true;
+        tab.FocusedPane.SendInput("clear; echo \"$(date +%H:%M) checking both nodes\"; uptime; df -h / | tail -n 1\r");
+        await WaitUntil(() => tab.Panes.All(p => ScreenContains(p.Session, "checking both nodes")), "output in both");
+        await Pump(300);
+        Save(window, "13-pair-side-by-side");
+
+        foreach (var pane in tab.Panes)
+            pane.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task CombiningTabsKeepsSessionsConnectedAndScreensIntact()
+    {
+        var server = SshTestServer.TryStart();
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        var web1 = AddServer(vm, "web1", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        var web2 = AddServer(vm, "web2", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        vm.Connect(web1);
+        var tabA = (TerminalTabViewModel)vm.SelectedTab!;
+        vm.Connect(web2);
+        var tabB = (TerminalTabViewModel)vm.SelectedTab!;
+        var (sessionA, sessionB) = (tabA.FocusedPane.Session, tabB.FocusedPane.Session);
+        await WaitUntil(() => sessionA.State == SessionState.Connected && sessionB.State == SessionState.Connected, "both tabs");
+        sessionA.Send("echo marker-from-tab-a\r");
+        sessionB.Send("echo marker-from-tab-b\r");
+        await WaitUntil(() => ScreenContainsLine(sessionA, "marker-from-tab-a") && ScreenContainsLine(sessionB, "marker-from-tab-b"), "markers");
+        var (sinceA, sinceB) = (sessionA.ConnectedSince, sessionB.ConnectedSince);
+        await Pump(100);
+
+        // Ctrl+click tab A's header while B is selected: marks A without switching to it.
+        ClickTab(window, tabA, RawInputModifiers.Control);
+        await Pump(100);
+        Assert.Same(tabB, vm.SelectedTab);
+        Assert.True(tabA.IsMarked);
+        Assert.Equal("Combine 2 tabs into a split", vm.CombineLabel);
+        Save(window, "14-tabs-marked");
+
+        vm.CombineMarkedCommand.Execute(null);
+        await Pump(300);
+        var combined = Assert.Single(vm.Tabs.OfType<TerminalTabViewModel>());
+        Assert.Equal(new[] { sessionA, sessionB }, combined.Panes.Select(p => p.Session));
+        Assert.Equal("web1 | web2", combined.Title);
+        Assert.Same(sessionB, combined.FocusedPane.Session); // B was the selected tab
+        Assert.Same(sessionB, FocusedSession(window));
+        // Re-hosted, not reconnected: same connections, earlier output still on screen.
+        Assert.Equal((sinceA, sinceB), (sessionA.ConnectedSince, sessionB.ConnectedSince));
+        Assert.True(ScreenContainsLine(sessionA, "marker-from-tab-a"));
+        Assert.True(ScreenContainsLine(sessionB, "marker-from-tab-b"));
+        Assert.False(tabA.IsMarked);
+        Save(window, "15-tabs-combined");
+
+        // Pane menu "Move to new tab", then combine with a tab that is itself split.
+        vm.MovePaneToNewTab(combined, combined.Panes[0]);
+        Assert.Equal(2, vm.Tabs.OfType<TerminalTabViewModel>().Count());
+        var movedOut = (TerminalTabViewModel)vm.SelectedTab!;
+        Assert.Same(sessionA, movedOut.FocusedPane.Session);
+        vm.Split(combined, combined.Panes[0], Avalonia.Layout.Orientation.Vertical);
+        await WaitUntil(() => combined.Panes.All(p => p.Session.State == SessionState.Connected), "split");
+
+        vm.CombineTabs(new[] { movedOut, combined });
+        var three = Assert.Single(vm.Tabs.OfType<TerminalTabViewModel>());
+        // Tabs combine in on-screen order: the split tab (left), then the moved-out pane (right).
+        var root = Assert.IsType<SplitViewModel>(three.Root);
+        Assert.Equal(Avalonia.Layout.Orientation.Horizontal, root.Orientation);
+        Assert.Equal(Avalonia.Layout.Orientation.Vertical, Assert.IsType<SplitViewModel>(root.First).Orientation); // kept its stack
+        Assert.Same(sessionA, Assert.IsType<TerminalPaneViewModel>(root.Second).Session);
+
+        vm.SeparatePanes(three);
+        Assert.Equal(3, vm.Tabs.OfType<TerminalTabViewModel>().Count());
+        Assert.All(vm.Tabs.OfType<TerminalTabViewModel>(), t => Assert.Equal(SessionState.Connected, t.FocusedPane.Session.State));
+        Assert.Equal((sinceA, sinceB), (sessionA.ConnectedSince, sessionB.ConnectedSince));
+
+        foreach (var tab in vm.Tabs.OfType<TerminalTabViewModel>())
+            tab.FocusedPane.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task AskEveryTimePassphraseIsNeverStoredAndReusedInMemory()
+    {
+        const string passphrase = "correct key passphrase";
+        var server = SshTestServer.TryStart(clientKeyPassphrase: passphrase);
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+
+        var prompts = 0;
+        var provider = new CachingPassphraseProvider((_, _, _) =>
+        {
+            Interlocked.Increment(ref prompts);
+            return Task.FromResult<string?>(passphrase);
+        });
+        var (window, vm, sessions) = Create(provider);
+        vm.Locked += provider.Clear; // as App wires it
+        await CreateVault(vm);
+
+        vm.Servers.AddServerCommand.Execute(null);
+        var editor = vm.Servers.Editor!;
+        (editor.Name, editor.Host, editor.Port, editor.Username) = ("keyed", "127.0.0.1", server.Port, Environment.UserName);
+        editor.AuthMethodIndex = (int)AuthMethod.PrivateKey;
+        editor.PrivateKey = server.ClientPrivateKey!;
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Contains("could not be loaded", editor.ValidationError); // encrypted key, no passphrase
+
+        editor.PrivateKeyPassphrase = "typed then thought better of it";
+        editor.AskForPassphrase = true;
+        Assert.False(editor.ShowStoredPassphrase);
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Null(editor.ValidationError);
+        var saved = vm.Data!.Servers.Single();
+        Assert.True(saved.AskForPassphrase);
+        Assert.Null(saved.PrivateKeyPassphrase);
+        Save(window, "16-ask-passphrase-editor");
+
+        vm.Connect(saved);
+        var tab = (TerminalTabViewModel)vm.SelectedTab!;
+        await WaitUntil(() => tab.FocusedPane.Session.State == SessionState.Connected, "connected with prompted passphrase");
+        Assert.Equal(1, prompts);
+
+        vm.Split(tab, tab.FocusedPane, Avalonia.Layout.Orientation.Horizontal);
+        await WaitUntil(() => tab.Panes.All(p => p.Session.State == SessionState.Connected), "split");
+        Assert.Equal(1, prompts); // the split reused the in-memory answer
+
+        vm.Lock();
+        vm.Password = AdminPassword;
+        await vm.UnlockCommand.ExecuteAsync(null);
+        vm.Split(tab, tab.FocusedPane, Avalonia.Layout.Orientation.Vertical);
+        await WaitUntil(() => tab.Panes.Count == 3 && tab.Panes.All(p => p.Session.State == SessionState.Connected), "split after lock");
+        Assert.Equal(2, prompts); // locking forgot it
+
+        Assert.DoesNotContain(passphrase, File.ReadAllText(Path.Combine(_dir, "vault.json")));
+        Assert.All(vm.Data!.Servers, s => Assert.Null(s.PrivateKeyPassphrase));
+
+        foreach (var pane in tab.Panes)
+            pane.Session.Disconnect();
         await sessions.DisposeAsync();
     }
 
@@ -331,12 +591,12 @@ public sealed class UiTests : IDisposable
         Assert.Equal(expected.ToString(), actual.ToString());
     }
 
-    private static void ClickTab(Window window, TabViewModel tab)
+    private static void ClickTab(Window window, TabViewModel tab, RawInputModifiers modifiers = RawInputModifiers.None)
     {
         var item = window.GetVisualDescendants().OfType<TabItem>().Single(t => ReferenceEquals(t.DataContext, tab));
         var center = item.TranslatePoint(new Point(item.Bounds.Width / 2, item.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(center, MouseButton.Left);
-        window.MouseUp(center, MouseButton.Left);
+        window.MouseDown(center, MouseButton.Left, modifiers);
+        window.MouseUp(center, MouseButton.Left, modifiers);
     }
 
     private static SshSession? FocusedSession(Window window) =>
@@ -356,12 +616,12 @@ public sealed class UiTests : IDisposable
 
     // ------------------------------------------------------------------ helpers
 
-    private (MainWindow Window, MainWindowViewModel Vm, SessionManager Sessions) Create()
+    private (MainWindow Window, MainWindowViewModel Vm, SessionManager Sessions) Create(IPassphraseProvider? passphrases = null)
     {
         Directory.CreateDirectory(_dir);
         var window = new MainWindow { Width = 1280, Height = 800 };
         var dialogs = new DialogService(window);
-        var sessions = new SessionManager(new TrustAll());
+        var sessions = new SessionManager(new TrustAll(), passphrases);
         var vm = new MainWindowViewModel(new Vault(Path.Combine(_dir, "vault.json")), sessions, dialogs);
         window.DataContext = vm;
         window.Show();

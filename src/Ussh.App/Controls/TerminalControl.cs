@@ -33,6 +33,14 @@ public sealed class TerminalControl : Control
     public static readonly StyledProperty<double> FontSizeProperty =
         TextElement.FontSizeProperty.AddOwner<TerminalControl>();
 
+    /// <summary>
+    /// Where typed and pasted text goes. Defaults to this terminal's session; a split tab sets it
+    /// so broadcast input can reach every pane. (Mouse reports and terminal replies always go to
+    /// this terminal's own session.)
+    /// </summary>
+    public static readonly StyledProperty<Action<string>?> InputSinkProperty =
+        AvaloniaProperty.Register<TerminalControl, Action<string>?>(nameof(InputSink));
+
     /// <summary>Colours (named ColorScheme because Avalonia's StyledElement already has a Theme).</summary>
     public static readonly StyledProperty<TerminalTheme?> ColorSchemeProperty =
         AvaloniaProperty.Register<TerminalControl, TerminalTheme?>(nameof(ColorScheme));
@@ -91,6 +99,12 @@ public sealed class TerminalControl : Control
     {
         get => GetValue(FontSizeProperty);
         set => SetValue(FontSizeProperty, value);
+    }
+
+    public Action<string>? InputSink
+    {
+        get => GetValue(InputSinkProperty);
+        set => SetValue(InputSinkProperty, value);
     }
 
     public TerminalTheme? ColorScheme
@@ -453,6 +467,11 @@ public sealed class TerminalControl : Control
 
     private void SendInput(string text)
     {
+        if (InputSink is { } sink)
+        {
+            sink(text);
+            return;
+        }
         var session = Session;
         if (session == null)
             return;
@@ -716,7 +735,7 @@ public sealed class TerminalControl : Control
         return text.ToString();
     }
 
-    private async Task CopySelectionAsync()
+    public async Task CopySelectionAsync()
     {
         var text = GetSelectedText();
         var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
@@ -724,7 +743,7 @@ public sealed class TerminalControl : Control
             await clipboard.SetTextAsync(text);
     }
 
-    private async Task PasteAsync()
+    public async Task PasteAsync()
     {
         var session = Session;
         var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
@@ -742,6 +761,19 @@ public sealed class TerminalControl : Control
         SendInput(text);
     }
 
+    public void SelectAll()
+    {
+        var emulator = Emulator;
+        if (emulator == null)
+            return;
+        lock (emulator.SyncRoot)
+        {
+            _selectionAnchor = (0, 0);
+            _selectionEnd = (Math.Max(0, _cols - 1), emulator.Terminal.Buffer.Lines.Length - 1);
+        }
+        emulator.MarkDirty();
+    }
+
     private ContextMenu BuildContextMenu()
     {
         var copy = new MenuItem { Header = "Copy", InputGesture = new KeyGesture(Key.C, KeyModifiers.Control | KeyModifiers.Shift) };
@@ -749,18 +781,7 @@ public sealed class TerminalControl : Control
         var paste = new MenuItem { Header = "Paste", InputGesture = new KeyGesture(Key.V, KeyModifiers.Control | KeyModifiers.Shift) };
         paste.Click += (_, _) => _ = PasteAsync();
         var selectAll = new MenuItem { Header = "Select all" };
-        selectAll.Click += (_, _) =>
-        {
-            var emulator = Emulator;
-            if (emulator == null)
-                return;
-            lock (emulator.SyncRoot)
-            {
-                _selectionAnchor = (0, 0);
-                _selectionEnd = (Math.Max(0, _cols - 1), emulator.Terminal.Buffer.Lines.Length - 1);
-            }
-            emulator.MarkDirty();
-        };
+        selectAll.Click += (_, _) => SelectAll();
         return new ContextMenu { Items = { copy, paste, new Separator(), selectAll } };
     }
 }

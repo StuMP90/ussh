@@ -281,7 +281,8 @@ public sealed partial class ServersTabViewModel : TabViewModel
     {
         if (SelectedServer == null)
             return;
-        if (Editor is { IsDirty: true } editor && editor.Id == SelectedServer.Profile.Id)
+        var targets = SelectedServers.Count > 1 ? SelectedServers.ToList() : new List<ServerItemViewModel> { SelectedServer };
+        if (Editor is { IsDirty: true } editor && targets.Any(t => t.Profile.Id == editor.Id))
         {
             if (!await _dialogs.ConfirmAsync("Unsaved changes", "Save changes to this server before connecting?", "Save and connect"))
                 return;
@@ -289,8 +290,25 @@ public sealed partial class ServersTabViewModel : TabViewModel
             if (editor.ValidationError != null)
                 return;
         }
-        _main.Connect(SelectedServer.Profile);
+        // Profiles are re-read after a possible save (SaveServer replaces the saved object).
+        _main.ConnectTogether(targets.Select(t => t.Profile).ToList());
     }
+
+    /// <summary>All selected servers (Ctrl/Shift+click). Several open side by side in one tab.</summary>
+    public IReadOnlyList<ServerItemViewModel> SelectedServers
+    {
+        get => _selectedServers;
+        set
+        {
+            _selectedServers = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ConnectLabel));
+        }
+    }
+
+    private IReadOnlyList<ServerItemViewModel> _selectedServers = Array.Empty<ServerItemViewModel>();
+
+    public string ConnectLabel => SelectedServers.Count > 1 ? $"Connect {SelectedServers.Count} side by side" : "Connect";
 
     private bool HasSelection() => SelectedServer != null;
 

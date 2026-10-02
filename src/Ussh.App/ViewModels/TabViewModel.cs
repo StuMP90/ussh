@@ -12,6 +12,10 @@ public abstract partial class TabViewModel : ObservableObject
     [ObservableProperty]
     private IBrush? _indicator;
 
+    /// <summary>Ctrl+clicked, to be combined with the selected tab into one split tab.</summary>
+    [ObservableProperty]
+    private bool _isMarked;
+
     public abstract bool CanClose { get; }
 
     public abstract IAsyncRelayCommand CloseTabCommand { get; }

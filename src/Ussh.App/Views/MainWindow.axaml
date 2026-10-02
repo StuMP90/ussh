@@ -32,6 +32,12 @@
         <DockPanel>
           <Button DockPanel.Dock="Right" Content="Lock" Command="{Binding LockCommand}"
                   ToolTip.Tip="Lock uSSH (Ctrl+Shift+L). Sessions keep running." />
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="0,0,12,0"
+                      IsVisible="{Binding CanCombine}">
+            <Button Classes="accent" Content="{Binding CombineLabel}" Command="{Binding CombineMarkedCommand}"
+                    ToolTip.Tip="Join the selected and Ctrl+clicked tabs side by side. Sessions stay connected." />
+            <Button Content="Cancel" Click="OnClearMarksClick" />
+          </StackPanel>
           <TextBlock Text="uSSH" FontWeight="SemiBold" VerticalAlignment="Center" />
         </DockPanel>
       </Border>
@@ -40,6 +46,9 @@
                   SelectionChanged="OnTabSelectionChanged">
         <TabControl.ItemTemplate>
           <DataTemplate DataType="vm:TabViewModel">
+            <!-- Ctrl+clicked (marked for combining) tabs get an accent outline. -->
+            <Border CornerRadius="4" Padding="6,2" Margin="-6,-2" BorderThickness="1"
+                    BorderBrush="{Binding IsMarked, Converter={x:Static views:MainWindow.MarkedBorder}}">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Ellipse Width="8" Height="8" Fill="{Binding Indicator}" IsVisible="{Binding Indicator, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center" />
               <TextBlock Text="{Binding Title}" FontSize="14" VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
@@ -47,6 +56,7 @@
                       Padding="4,0" FontSize="11" Background="Transparent" VerticalAlignment="Center"
                       ToolTip.Tip="Close session" />
             </StackPanel>
+            </Border>
           </DataTemplate>
         </TabControl.ItemTemplate>
       </TabControl>
