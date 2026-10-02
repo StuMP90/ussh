@@ -13,6 +13,14 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
 - **Admin password**: all server configuration, including passwords and keys, lives in one
   encrypted vault. The admin password is required to view or edit servers and to open
   connections. Auto-lock after inactivity; locking does **not** drop open sessions.
+- **Jump hosts (bastions)**: reach a server through another saved server, which can itself
+  use a jump host (chains up to 8 hops). Each hop uses that server's own credentials and
+  host-key check, and the whole chain reconnects together. Loops are prevented in the editor.
+- **Themes** per server, or a default in Settings, with a live preview in the picker:
+  uSSH Dark, old-school **Amber (P3)**, **Green (P1)** and **White (P4)** phosphor (every
+  colour rendered as a shade of the tint, like the real thing), Campbell, Solarized
+  Dark/Light, Dracula, Nord, Gruvbox Dark, Monokai, One Dark, Tomorrow Night, One Light and
+  High Contrast. Changing a theme updates open tabs immediately.
 - **Tunnels** per server: local (`-L`), remote (`-R`) and dynamic SOCKS (`-D`), started on
   every connect. A tunnel that fails to start (port in use, etc.) is reported but never
   affects the terminal.
@@ -92,9 +100,11 @@ dotnet test
 - `Ussh.Core.Tests`: vault crypto; terminal regressions and fuzzing; end-to-end sessions
   against a real SSH server (password/key auth, host key trust/reject/change, server
   restart → auto-reconnect, `exit`, disconnect/reconnect, resize, local/remote tunnels,
-  failed tunnels, a 200k-line output flood).
+  failed tunnels, a 200k-line output flood, one- and two-hop jump hosts including a
+  bastion restart and a bastion auth failure, tunnels through a jump host).
 - `Ussh.App.Tests`: drives the real UI headlessly: first-run password, server management,
-  lock/unlock persistence, validation, and a live terminal tab. Set
+  lock/unlock persistence, validation, a live terminal tab, tab focus and shortcuts, a
+  bastion configured in the editor, and per-server themes (checked by pixel colour). Set
   `USSH_SCREENSHOT_DIR` to keep the screenshots.
 
 ### Soak test
@@ -162,8 +172,8 @@ The tarball is self-contained and includes an `install.sh` (installs to `~/.loca
 
 ## Known limitations and roadmap
 
-- Not yet: SFTP browser, jump hosts/ProxyJump, agent forwarding, PuTTY `.ppk` keys (convert with
-  PuTTYgen), split panes, themes, and per-server font settings.
+- Not yet: SFTP browser, agent forwarding, PuTTY `.ppk` keys (convert with PuTTYgen), split
+  panes, custom/imported themes, and per-server font settings.
 - Line reflow on resize is disabled (the upstream reflow code is unreliable); long lines are
   truncated when the window narrows, like xterm.
 - Rendering redraws the whole visible screen when anything changes. That's fine for normal

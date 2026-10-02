@@ -32,16 +32,20 @@ public sealed class SessionManager : IAsyncDisposable
         get { lock (_gate) return _sessions.ToList(); }
     }
 
-    /// <summary>Raised (on a background thread) when a session's host key is newly trusted.</summary>
-    public event Action<SshSession, string>? HostKeyTrusted;
+    /// <summary>
+    /// Raised (on a background thread) when a host key is newly trusted. The Guid is the server
+    /// it belongs to: the session's target or one of its jump hosts.
+    /// </summary>
+    public event Action<SshSession, Guid, string>? HostKeyTrusted;
 
-    public SshSession Open(ServerProfile profile)
+    /// <param name="jumpHosts">From <see cref="JumpHostResolver.Resolve"/>, outermost first.</param>
+    public SshSession Open(ServerProfile profile, IReadOnlyList<ServerProfile>? jumpHosts = null)
     {
-        var session = new SshSession(profile, _hostKeyVerifier);
-        session.HostKeyTrusted += (s, fp) => HostKeyTrusted?.Invoke(s, fp);
+        var session = new SshSession(profile, _hostKeyVerifier, jumpHosts);
+        session.HostKeyTrusted += (s, id, fp) => HostKeyTrusted?.Invoke(s, id, fp);
         lock (_gate)
             _sessions.Add(session);
-        Log.Info(nameof(SessionManager), $"Opening session to {profile.DisplayName}.");
+        Log.Info(nameof(SessionManager), $"Opening session to {profile.DisplayName} ({session.Route}).");
         return session;
     }
 

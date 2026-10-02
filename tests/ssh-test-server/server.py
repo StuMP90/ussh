@@ -37,6 +37,7 @@ class Server(paramiko.ServerInterface):
         self.term = "xterm-256color"
         self.shell_requested = threading.Event()
         self.master_fd = None
+        self.direct_tcpip = {}  # chanid -> upstream socket, claimed by the accept loop
         self.allowed_keys = []
         for path in args.authorized_key or []:
             with open(path) as f:
@@ -97,15 +98,8 @@ class Server(paramiko.ServerInterface):
         except OSError as e:
             log("direct-tcpip to", destination, "failed:", e)
             return paramiko.OPEN_FAILED_CONNECT_FAILED
-
-        def attach():
-            channel = self.transport.accept(10)
-            if channel is None:
-                upstream.close()
-                return
-            pipe(channel, upstream)
-
-        threading.Thread(target=attach, daemon=True).start()
+        upstream.settimeout(None)
+        self.direct_tcpip[chanid] = upstream
         return paramiko.OPEN_SUCCEEDED
 
     def check_port_forward_request(self, address, port):
@@ -218,15 +212,22 @@ def handle(client, args, host_key):
     except Exception as e:
         log("negotiation failed:", e)
         return
-    channel = transport.accept(30)
-    if channel is None:
+    # One accept loop for every channel: forwarded (direct-tcpip) channels get piped, the
+    # session channel gets a shell. A bastion may only ever open forwarded channels.
+    def session(channel):
+        if server.shell_requested.wait(10):
+            run_shell(channel, server)
         transport.close()
-        return
-    if not server.shell_requested.wait(10):
-        channel.close()
-        return
-    run_shell(channel, server)
-    transport.close()
+
+    while transport.is_active():
+        channel = transport.accept(1)
+        if channel is None:
+            continue
+        upstream = server.direct_tcpip.pop(channel.get_id(), None)
+        if upstream is not None:
+            threading.Thread(target=pipe, args=(channel, upstream), daemon=True).start()
+        else:
+            threading.Thread(target=session, args=(channel,), daemon=True).start()
 
 
 def main():

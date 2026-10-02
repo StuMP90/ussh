@@ -14,11 +14,17 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     private readonly Guid _id;
     private readonly DialogService _dialogs;
 
-    public ServerEditorViewModel(ServerProfile profile, bool isNew, DialogService dialogs)
+    public ServerEditorViewModel(ServerProfile profile, bool isNew, DialogService dialogs,
+        IReadOnlyList<JumpHostOption> jumpHostOptions, IReadOnlyList<ThemeOption> themeOptions)
     {
         _id = profile.Id;
         _dialogs = dialogs;
         IsNew = isNew;
+        JumpHostOptions = jumpHostOptions;
+        ThemeOptions = themeOptions;
+        // A jump host that has since been deleted (or would now loop) shows as "None".
+        _selectedJumpHost = jumpHostOptions.FirstOrDefault(o => o.Id == profile.JumpHostId) ?? JumpHostOption.Direct;
+        _selectedTheme = themeOptions.FirstOrDefault(o => o.Name == profile.ThemeName) ?? themeOptions[0];
         _name = profile.Name;
         _group = profile.Group;
         _host = profile.Host;
@@ -37,8 +43,9 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         _notes = profile.Notes;
         foreach (var tunnel in profile.Tunnels)
             Tunnels.Add(NewTunnel(tunnel));
-        Tunnels.CollectionChanged += (_, _) => IsDirty = true;
+        Tunnels.CollectionChanged += (_, _) => UpdateDirty();
         PropertyChanged += OnAnyPropertyChanged;
+        _savedState = isNew ? null : Snapshot();
         IsDirty = isNew;
     }
 
@@ -46,6 +53,33 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     public bool IsNew { get; private set; }
     public ObservableCollection<TunnelEditorViewModel> Tunnels { get; } = new();
     public string[] AuthMethods { get; } = { "Password", "Private key" };
+    public IReadOnlyList<JumpHostOption> JumpHostOptions { get; }
+    public IReadOnlyList<ThemeOption> ThemeOptions { get; }
+
+    [ObservableProperty] private JumpHostOption? _selectedJumpHost;
+    [ObservableProperty] private ThemeOption? _selectedTheme;
+
+    // Pickers can push a transient null back through their binding while items load;
+    // never let that clear the real choice.
+    partial void OnSelectedJumpHostChanged(JumpHostOption? oldValue, JumpHostOption? newValue)
+    {
+        if (newValue == null && oldValue != null)
+            SelectedJumpHost = oldValue;
+    }
+
+    partial void OnSelectedThemeChanged(ThemeOption? oldValue, ThemeOption? newValue)
+    {
+        if (newValue == null && oldValue != null)
+            SelectedTheme = oldValue;
+    }
+
+    // Serialized form of the saved profile. Dirty means "differs from this", not "a property
+    // was set", so bindings re-pushing the same values don't produce phantom unsaved changes.
+    private string? _savedState;
+
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(ToProfile());
+
+    private void UpdateDirty() => IsDirty = _savedState == null || Snapshot() != _savedState;
 
     [ObservableProperty] private bool _isDirty;
     [ObservableProperty] private string? _validationError;
@@ -89,7 +123,7 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         if (e.PropertyName is nameof(IsDirty) or nameof(ValidationError) or nameof(Heading)
             or nameof(IsPasswordAuth) or nameof(IsKeyAuth) or nameof(HostKeyDisplay) or nameof(HasHostKey))
             return;
-        IsDirty = true;
+        UpdateDirty();
         if (e.PropertyName is nameof(Name) or nameof(Host) or nameof(Username))
             OnPropertyChanged(nameof(Heading));
     }
@@ -118,6 +152,7 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     public void MarkSaved()
     {
         IsNew = false;
+        _savedState = Snapshot();
         IsDirty = false;
         OnPropertyChanged(nameof(Heading));
     }
@@ -127,6 +162,8 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     {
         var dirty = IsDirty;
         HostKeyFingerprint = fingerprint;
+        if (_savedState != null)
+            _savedState = Snapshot();
         IsDirty = dirty;
     }
 
@@ -176,13 +213,15 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         TerminalType = string.IsNullOrWhiteSpace(TerminalType) ? "xterm-256color" : TerminalType.Trim(),
         ScrollbackLines = (int)ScrollbackLines,
         Tunnels = Tunnels.Select(t => t.ToDefinition()).ToList(),
+        JumpHostId = SelectedJumpHost?.Id,
+        ThemeName = SelectedTheme?.Name,
         Notes = Notes,
     };
 
     private TunnelEditorViewModel NewTunnel(TunnelDefinition definition)
     {
         var vm = new TunnelEditorViewModel(definition, t => Tunnels.Remove(t));
-        vm.PropertyChanged += (_, _) => IsDirty = true;
+        vm.PropertyChanged += (_, _) => UpdateDirty();
         return vm;
     }
 }

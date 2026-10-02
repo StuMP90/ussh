@@ -17,4 +17,7 @@ public sealed class AppSettings
 
     public string FontFamily { get; set; } = "Cascadia Mono, JetBrains Mono, DejaVu Sans Mono, Consolas, Menlo, monospace";
     public double FontSize { get; set; } = 14;
+
+    /// <summary>Terminal theme for servers that don't choose their own.</summary>
+    public string DefaultTheme { get; set; } = "uSSH Dark";
 }

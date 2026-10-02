@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Media;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -14,6 +15,9 @@ using Ussh.Core.Models;
 using Ussh.Core.Security;
 using Ussh.Core.Ssh;
 using Ussh.Core.Tests.Integration;
+
+// KeyPress(Key, modifiers) is marked obsolete in favour of physical keys; the logical key is what these tests mean.
+#pragma warning disable CS0618
 
 namespace Ussh.App.Tests;
 
@@ -210,6 +214,121 @@ public sealed class UiTests : IDisposable
         foreach (var tab in new[] { first, second })
             tab.Session.Disconnect();
         await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task JumpHostConfiguredInEditorConnectsThroughBastion()
+    {
+        var bastionServer = SshTestServer.TryStart();
+        var targetServer = SshTestServer.TryStart();
+        if (bastionServer == null || targetServer == null)
+            return; // python3/paramiko not available
+        _dispose.Add(bastionServer);
+        _dispose.Add(targetServer);
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        var bastion = AddServer(vm, "bastion", "", "127.0.0.1", Environment.UserName, port: bastionServer.Port, password: SshTestServer.Password);
+        AddServer(vm, "internal-app", "", "127.0.0.1", Environment.UserName, port: targetServer.Port, password: SshTestServer.Password);
+
+        // Pick the bastion in the target's editor.
+        vm.Servers.SelectedServer = vm.Servers.FilteredServers.Single(s => s.Name == "internal-app");
+        var editor = vm.Servers.Editor!;
+        Assert.Equal(new[] { "None (connect directly)", "bastion" }, editor.JumpHostOptions.Select(o => o.Label.Split("  ")[0]));
+        editor.SelectedJumpHost = editor.JumpHostOptions.Single(o => o.Id == bastion.Id);
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Null(editor.ValidationError);
+        var item = vm.Servers.FilteredServers.Single(s => s.Name == "internal-app");
+        Assert.Equal("via bastion", item.Via);
+        Save(window, "07-jump-host-editor");
+
+        // The bastion's own editor must not offer the target (that would be a loop).
+        vm.Servers.SelectedServer = vm.Servers.FilteredServers.Single(s => s.Name == "bastion");
+        Assert.DoesNotContain(vm.Servers.Editor!.JumpHostOptions, o => o.Label.StartsWith("internal-app"));
+
+        vm.Servers.SelectedServer = item;
+        await Pump(100); // let the editor's pickers bind
+        Assert.False(vm.Servers.Editor!.IsDirty, "opening a saved server must not mark it as changed");
+        await vm.Servers.ConnectCommand.ExecuteAsync(null);
+        var tab = Assert.IsType<TerminalTabViewModel>(vm.SelectedTab);
+        await WaitUntil(() => tab.Session.State == SessionState.Connected, "connected via bastion");
+        Assert.Contains("via bastion", tab.Endpoint);
+        tab.Session.Send("echo hello-from-inside\r");
+        await WaitUntil(() => ScreenContainsLine(tab.Session, "hello-from-inside"), "output via bastion");
+
+        // Both host keys were remembered on their own servers.
+        await Pump(100);
+        Assert.All(vm.Data!.Servers, s => Assert.NotNull(s.HostKeyFingerprint));
+
+        tab.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task PerServerThemesApplyAndUpdateLive()
+    {
+        var server = SshTestServer.TryStart();
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        AddServer(vm, "Old school", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        vm.Servers.SelectedServer = vm.Servers.FilteredServers.Single();
+        var editor = vm.Servers.Editor!;
+        Assert.StartsWith("Default (uSSH Dark)", editor.ThemeOptions[0].Label);
+        Assert.Contains(editor.ThemeOptions, o => o.Name == "Green (P1 phosphor)");
+        editor.SelectedTheme = editor.ThemeOptions.Single(o => o.Name == "Amber (P3 phosphor)");
+        vm.Servers.SaveServerCommand.Execute(null);
+        await Pump(100);
+        var themePicker = window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.ItemsSource == editor.ThemeOptions);
+        themePicker.BringIntoView();
+        await Pump(100);
+        Save(window, "08-theme-editor");
+
+        await vm.Servers.ConnectCommand.ExecuteAsync(null);
+        var tab = Assert.IsType<TerminalTabViewModel>(vm.SelectedTab);
+        await WaitUntil(() => tab.Session.State == SessionState.Connected, "connected");
+        await Pump(300);
+        tab.Session.Send("clear; printf '\\e[31mred \\e[32mgreen \\e[34mblue \\e[1;37mbold white\\e[0m \\e[7m inverse \\e[0m\\n'; ls -la /\r");
+        await WaitUntil(() => ScreenContains(tab.Session, "bold white"), "output");
+        await Pump(300);
+        Assert.Equal("Amber (P3 phosphor)", tab.Theme.Name);
+        AssertTerminalBackground(window, Color.Parse("#120A00"));
+        Save(window, "09-amber");
+
+        // Changing the server's theme updates the open tab.
+        vm.SelectedTab = vm.Servers;
+        vm.Servers.Editor!.SelectedTheme = vm.Servers.Editor.ThemeOptions.Single(o => o.Name == "Green (P1 phosphor)");
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Equal("Green (P1 phosphor)", tab.Theme.Name);
+        vm.SelectedTab = tab;
+        await Pump(300);
+        AssertTerminalBackground(window, Color.Parse("#011A07"));
+        Save(window, "10-green");
+
+        tab.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
+    private static void AssertTerminalBackground(Window window, Color expected)
+    {
+        var terminal = window.GetVisualDescendants().OfType<TerminalControl>().Single();
+        // Bottom-right corner of the terminal: always empty background.
+        var corner = terminal.TranslatePoint(new Point(terminal.Bounds.Width - 3, terminal.Bounds.Height - 3), window)!.Value;
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        using var frame = window.CaptureRenderedFrame()!;
+        using var buffer = frame.Lock();
+        var x = (int)(corner.X * frame.Dpi.X / 96);
+        var y = (int)(corner.Y * frame.Dpi.Y / 96);
+        var offset = y * buffer.RowBytes + x * 4;
+        byte At(int i) => System.Runtime.InteropServices.Marshal.ReadByte(buffer.Address, offset + i);
+        var actual = buffer.Format == Avalonia.Platform.PixelFormat.Rgba8888
+            ? Color.FromRgb(At(0), At(1), At(2))
+            : Color.FromRgb(At(2), At(1), At(0)); // Bgra8888
+        Assert.Equal(expected.ToString(), actual.ToString());
     }
 
     private static void ClickTab(Window window, TabViewModel tab)

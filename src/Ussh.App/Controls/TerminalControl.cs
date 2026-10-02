@@ -33,11 +33,15 @@ public sealed class TerminalControl : Control
     public static readonly StyledProperty<double> FontSizeProperty =
         TextElement.FontSizeProperty.AddOwner<TerminalControl>();
 
+    /// <summary>Colours (named ColorScheme because Avalonia's StyledElement already has a Theme).</summary>
+    public static readonly StyledProperty<TerminalTheme?> ColorSchemeProperty =
+        AvaloniaProperty.Register<TerminalControl, TerminalTheme?>(nameof(ColorScheme));
+
     private const double Padding = 6;
     private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(16);
     private static readonly TimeSpan ResizeDebounce = TimeSpan.FromMilliseconds(80);
 
-    private readonly TerminalPalette _palette = TerminalPalette.Default;
+    private TerminalPalette _palette = TerminalPalette.Default;
     private readonly DispatcherTimer _frameTimer;
     private readonly DispatcherTimer _resizeTimer;
     private Typeface _regular, _bold, _italic, _boldItalic;
@@ -89,6 +93,12 @@ public sealed class TerminalControl : Control
         set => SetValue(FontSizeProperty, value);
     }
 
+    public TerminalTheme? ColorScheme
+    {
+        get => GetValue(ColorSchemeProperty);
+        set => SetValue(ColorSchemeProperty, value);
+    }
+
     private TerminalEmulator? Emulator => Session?.Emulator;
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -114,6 +124,11 @@ public sealed class TerminalControl : Control
         {
             UpdateFonts();
             ScheduleResize();
+            InvalidateVisual();
+        }
+        else if (change.Property == ColorSchemeProperty)
+        {
+            _palette = TerminalPalette.For(ColorScheme ?? TerminalTheme.Default);
             InvalidateVisual();
         }
         else if (change.Property == SessionProperty)

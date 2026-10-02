@@ -36,6 +36,13 @@ public sealed class ServerProfile
     public int ScrollbackLines { get; set; } = 10_000;
 
     public List<TunnelDefinition> Tunnels { get; set; } = new();
+
+    /// <summary>Another saved server to connect through (bastion). It may itself have a jump host.</summary>
+    public Guid? JumpHostId { get; set; }
+
+    /// <summary>Terminal colour theme name; null uses the default from settings.</summary>
+    public string? ThemeName { get; set; }
+
     public string Notes { get; set; } = "";
 
     public string DisplayName => string.IsNullOrWhiteSpace(Name) ? $"{Username}@{Host}" : Name;

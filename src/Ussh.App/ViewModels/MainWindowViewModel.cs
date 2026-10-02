@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Ussh.App.Controls;
 using Ussh.App.Services;
 using Ussh.Core.Diagnostics;
 using Ussh.Core.Models;
@@ -37,8 +39,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Tabs.Add(Servers);
         _selectedTab = Servers;
 
-        _sessions.HostKeyTrusted += (session, fingerprint) =>
-            Dispatcher.UIThread.Post(() => RememberHostKey(session.Profile.Id, fingerprint));
+        _sessions.HostKeyTrusted += (_, serverId, fingerprint) =>
+            Dispatcher.UIThread.Post(() => RememberHostKey(serverId, fingerprint));
 
         _autoLockTimer = new DispatcherTimer(TimeSpan.FromSeconds(15), DispatcherPriority.Background, (_, _) => CheckAutoLock());
         _autoLockTimer.Start();
@@ -193,9 +195,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void Connect(ServerProfile profile)
     {
-        if (IsLocked)
+        if (IsLocked || _data == null)
             return;
-        var session = _sessions.Open(profile);
+        IReadOnlyList<ServerProfile> jumpHosts;
+        try
+        {
+            jumpHosts = JumpHostResolver.Resolve(profile, _data.Servers);
+        }
+        catch (JumpHostConfigurationException ex)
+        {
+            _ = _dialogs.AlertAsync("Can't connect", ex.Message);
+            return;
+        }
+        var session = _sessions.Open(profile, jumpHosts);
         var tab = new TerminalTabViewModel(session, this);
         Tabs.Add(tab);
         SelectedTab = tab;
@@ -216,6 +228,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
         tab.Detach();
         await _sessions.CloseAsync(tab.Session);
         OnPropertyChanged(nameof(LiveSessionNote));
+    }
+
+    /// <summary>The theme for a server: its own choice, else the default from settings.</summary>
+    public TerminalTheme ResolveTheme(ServerProfile profile) =>
+        TerminalTheme.Find(profile.ThemeName ?? Settings.DefaultTheme);
+
+    /// <summary>Re-applies theme and font to open tabs after a server or settings change.</summary>
+    public void RefreshAppearance()
+    {
+        if (_data == null)
+            return;
+        var font = FontFamily.Parse(Settings.FontFamily);
+        foreach (var tab in Tabs.OfType<TerminalTabViewModel>())
+        {
+            var saved = _data.Servers.FirstOrDefault(s => s.Id == tab.Session.Profile.Id) ?? tab.Session.Profile;
+            tab.ApplyAppearance(ResolveTheme(saved), font, Settings.FontSize);
+        }
     }
 
     public void SelectRelativeTab(int delta)

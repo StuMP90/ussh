@@ -2,6 +2,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Ussh.App.Controls;
 using Ussh.Core.Ssh;
 
 namespace Ussh.App.ViewModels;
@@ -20,8 +21,9 @@ public sealed partial class TerminalTabViewModel : TabViewModel
         Session = session;
         _main = main;
         Title = session.Profile.DisplayName;
-        FontFamily = FontFamily.Parse(main.Settings.FontFamily);
-        FontSize = main.Settings.FontSize;
+        _fontFamily = FontFamily.Parse(main.Settings.FontFamily);
+        _fontSize = main.Settings.FontSize;
+        _theme = main.ResolveTheme(session.Profile);
         CloseTabCommand = new AsyncRelayCommand(() => _main.CloseTabAsync(this));
 
         session.StateChanged += OnStateChanged;
@@ -32,8 +34,9 @@ public sealed partial class TerminalTabViewModel : TabViewModel
     }
 
     public SshSession Session { get; }
-    public FontFamily FontFamily { get; }
-    public double FontSize { get; }
+    [ObservableProperty] private FontFamily _fontFamily;
+    [ObservableProperty] private double _fontSize;
+    [ObservableProperty] private TerminalTheme _theme;
     public override bool CanClose => true;
     public override IAsyncRelayCommand CloseTabCommand { get; }
 
@@ -44,7 +47,14 @@ public sealed partial class TerminalTabViewModel : TabViewModel
     [ObservableProperty] private string? _remoteTitle;
     [ObservableProperty] private string? _tunnelSummary;
 
-    public string Endpoint => $"{Session.Profile.Username}@{Session.Profile.Host}:{Session.Profile.Port}";
+    public string Endpoint => $"{Session.Profile.Username}@{Session.Route}";
+
+    public void ApplyAppearance(TerminalTheme theme, FontFamily fontFamily, double fontSize)
+    {
+        Theme = theme;
+        FontFamily = fontFamily;
+        FontSize = fontSize;
+    }
 
     public string Uptime => Session.ConnectedSince is { } since
         ? "up " + FormatDuration(DateTimeOffset.Now - since)

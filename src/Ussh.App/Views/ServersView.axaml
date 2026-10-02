@@ -3,6 +3,31 @@
              xmlns:vm="using:Ussh.App.ViewModels"
              x:Class="Ussh.App.Views.ServersView"
              x:DataType="vm:ServersTabViewModel">
+  <UserControl.Resources>
+    <!-- Theme picker entry: the theme's own colours, a prompt sample and ANSI swatches. -->
+    <DataTemplate x:Key="ThemeOptionTemplate" DataType="vm:ThemeOption">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Border Background="{Binding Background}" CornerRadius="3" Padding="8,3" Width="190">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="user@host:~$" Foreground="{Binding Foreground}" FontSize="12"
+                       FontFamily="Cascadia Mono, DejaVu Sans Mono, Consolas, monospace" VerticalAlignment="Center" />
+            <ItemsControl ItemsSource="{Binding Swatches}" VerticalAlignment="Center">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="IBrush">
+                  <Rectangle Width="5" Height="10" Fill="{Binding}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
+
   <Grid ColumnDefinitions="320,Auto,*">
 
     <!-- Server list -->
@@ -28,6 +53,7 @@
                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
               </DockPanel>
               <TextBlock Text="{Binding Address}" FontSize="12" Classes="muted" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding Via}" FontSize="11" Classes="muted" IsVisible="{Binding HasVia}" TextTrimming="CharacterEllipsis" />
               <TextBlock Text="{Binding TunnelBadge}" FontSize="11" Classes="muted" IsVisible="{Binding TunnelBadge, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
           </DataTemplate>
@@ -63,7 +89,7 @@
           <TextBlock Classes="label" Grid.Row="1" Text="Group" />
           <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Group}" Watermark="Optional, e.g. Production" />
           <TextBlock Classes="label" Grid.Row="2" Text="Host" />
-          <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,120" ColumnSpacing="8">
+          <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,150" ColumnSpacing="8">
             <TextBox Text="{Binding Host}" Watermark="hostname or IP address" />
             <TextBlock Grid.Column="1" Classes="label" Text="Port" Margin="0" />
             <NumericUpDown Grid.Column="2" Value="{Binding Port}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
@@ -91,6 +117,15 @@
           <TextBox Grid.Row="1" Grid.Column="1" PasswordChar="●" Text="{Binding PrivateKeyPassphrase}" Watermark="Leave empty if the key isn't encrypted" />
         </Grid>
 
+        <TextBlock Classes="h2" Text="Jump host" />
+        <Grid ColumnDefinitions="160,*">
+          <TextBlock Classes="label" Text="Connect via" />
+          <ComboBox Grid.Column="1" ItemsSource="{Binding JumpHostOptions}" SelectedItem="{Binding SelectedJumpHost}"
+                    HorizontalAlignment="Stretch" />
+        </Grid>
+        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                   Text="Reach this server through another saved server (a bastion). That server's own credentials, host key and jump host are used for its hop, so chains work. Host and port above are as seen from the jump host." />
+
         <TextBlock Classes="h2" Text="Host key" />
         <DockPanel>
           <Button DockPanel.Dock="Right" Content="Forget" Command="{Binding ForgetHostKeyCommand}" IsVisible="{Binding HasHostKey}"
@@ -112,6 +147,11 @@
         </Grid>
 
         <TextBlock Classes="h2" Text="Terminal" />
+        <Grid ColumnDefinitions="160,*" Margin="0,0,0,8">
+          <TextBlock Classes="label" Text="Theme" />
+          <ComboBox Grid.Column="1" ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}"
+                    ItemTemplate="{StaticResource ThemeOptionTemplate}" HorizontalAlignment="Stretch" MaxDropDownHeight="480" />
+        </Grid>
         <Grid ColumnDefinitions="160,200,Auto,140" ColumnSpacing="0">
           <TextBlock Classes="label" Text="Terminal type" />
           <TextBox Grid.Column="1" Text="{Binding TerminalType}" />
@@ -167,7 +207,10 @@
         </Grid>
 
         <TextBlock Classes="h2" Text="Terminal" />
-        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto" RowSpacing="8">
+        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+          <TextBlock Classes="label" Grid.Row="2" Text="Default theme" />
+          <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding SettingsThemeOptions}" SelectedItem="{Binding DefaultTheme}"
+                    ItemTemplate="{StaticResource ThemeOptionTemplate}" HorizontalAlignment="Stretch" MaxDropDownHeight="480" />
           <TextBlock Classes="label" Text="Font family" />
           <TextBox Grid.Column="1" Text="{Binding FontFamily}" />
           <TextBlock Classes="label" Grid.Row="1" Text="Font size" />

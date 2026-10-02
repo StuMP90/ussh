@@ -86,7 +86,7 @@ public sealed class SshSessionTests : IDisposable
         profile.HostKeyFingerprint = null;
         var trusted = new TaskCompletionSource<string>();
         var session = Open(server, profile, verifier);
-        session.HostKeyTrusted += (_, fp) => trusted.TrySetResult(fp);
+        session.HostKeyTrusted += (_, _, fp) => trusted.TrySetResult(fp);
 
         await WaitForState(session, SessionState.Connected);
 
@@ -265,6 +265,103 @@ public sealed class SshSessionTests : IDisposable
         await WaitForScreen(session, "responsive");
     }
 
+    [Fact]
+    public async Task ConnectsThroughJumpHost()
+    {
+        if (StartServer() is not { } bastion || StartServer() is not { } target) return;
+        var bastionProfile = PasswordProfile(bastion);
+        bastionProfile.Name = "bastion";
+        var targetProfile = PasswordProfile(target);
+        targetProfile.Name = "target";
+        targetProfile.JumpHostId = bastionProfile.Id;
+        var verifier = new TestVerifier(accept: true);
+        var trusted = new List<Guid>();
+
+        var session = Open(target, targetProfile, verifier, new[] { bastionProfile });
+        session.HostKeyTrusted += (_, id, _) => { lock (trusted) trusted.Add(id); };
+
+        await WaitForState(session, SessionState.Connected);
+        session.Send("echo through-the-$((2*1))-hops\r");
+        await WaitForScreen(session, "through-the-2-hops");
+
+        // Each hop's key is verified as that server, outermost first, and remembered on its own record.
+        Assert.Equal(new[] { bastionProfile.Id, targetProfile.Id }, verifier.Calls.Select(c => c.ServerId));
+        Assert.NotEqual(verifier.Calls[0].Fingerprint, verifier.Calls[1].Fingerprint);
+        Assert.Equal(new[] { bastionProfile.Id, targetProfile.Id }, trusted);
+        Assert.Equal(verifier.Calls[0].Fingerprint, session.JumpHosts[0].HostKeyFingerprint);
+        Assert.Equal(verifier.Calls[1].Fingerprint, session.Profile.HostKeyFingerprint);
+        Assert.Contains("via bastion", session.Route);
+    }
+
+    [Fact]
+    public async Task ConnectsThroughTwoJumpHosts()
+    {
+        if (StartServer() is not { } outer || StartServer() is not { } inner || StartServer() is not { } target) return;
+        var outerProfile = PasswordProfile(outer);
+        var innerProfile = PasswordProfile(inner);
+        innerProfile.JumpHostId = outerProfile.Id;
+        var targetProfile = PasswordProfile(target);
+        targetProfile.JumpHostId = innerProfile.Id;
+        var chain = JumpHostResolver.Resolve(targetProfile, new[] { targetProfile, innerProfile, outerProfile });
+        Assert.Equal(new[] { outerProfile.Id, innerProfile.Id }, chain.Select(c => c.Id));
+
+        var session = Open(target, targetProfile, null, chain);
+
+        await WaitForState(session, SessionState.Connected);
+        session.Send("echo three-servers-deep\r");
+        await WaitForScreen(session, "three-servers-deep");
+    }
+
+    [Fact]
+    public async Task ReconnectsWhenJumpHostRestarts()
+    {
+        if (StartServer() is not { } bastion || StartServer() is not { } target) return;
+        var bastionProfile = PasswordProfile(bastion);
+        var targetProfile = PasswordProfile(target);
+        var session = Open(target, targetProfile, null, new[] { bastionProfile });
+        await WaitForState(session, SessionState.Connected);
+
+        bastion.Stop();
+        await WaitForState(session, SessionState.Reconnecting);
+        bastion.Start();
+
+        await WaitForState(session, SessionState.Connected, TimeSpan.FromSeconds(30));
+        session.Send("echo bastion-back\r");
+        await WaitForScreen(session, "bastion-back");
+    }
+
+    [Fact]
+    public async Task JumpHostAuthFailureNamesTheJumpHost()
+    {
+        if (StartServer() is not { } bastion || StartServer() is not { } target) return;
+        var bastionProfile = PasswordProfile(bastion);
+        bastionProfile.Name = "bastion";
+        bastionProfile.Password = "wrong";
+        var session = Open(target, PasswordProfile(target), null, new[] { bastionProfile });
+
+        await WaitForState(session, SessionState.Failed);
+
+        Assert.StartsWith("Jump host bastion: Authentication failed", session.StatusMessage);
+    }
+
+    [Fact]
+    public async Task TunnelsWorkThroughJumpHost()
+    {
+        if (StartServer() is not { } bastion || StartServer() is not { } target) return;
+        using var echo = new EchoServer();
+        var localPort = SshTestServer.FreePort();
+        var targetProfile = PasswordProfile(target);
+        targetProfile.Tunnels.Add(new TunnelDefinition
+        {
+            Type = TunnelType.Local, BindAddress = "127.0.0.1", BindPort = localPort,
+            DestinationHost = "127.0.0.1", DestinationPort = echo.Port,
+        });
+        var session = Open(target, targetProfile, null, new[] { PasswordProfile(bastion) });
+        await WaitForState(session, SessionState.Connected);
+
+        Assert.Equal("ping-jumped", await RoundTrip(localPort, "ping-jumped"));
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private SshTestServer? StartServer(bool withClientKey = false)
@@ -279,9 +376,10 @@ public sealed class SshSessionTests : IDisposable
         return server;
     }
 
-    private SshSession Open(SshTestServer server, ServerProfile profile, IHostKeyVerifier? verifier = null)
+    private SshSession Open(SshTestServer server, ServerProfile profile, IHostKeyVerifier? verifier = null,
+        IReadOnlyList<ServerProfile>? jumpHosts = null)
     {
-        var session = new SshSession(profile, verifier ?? new TestVerifier(accept: true));
+        var session = new SshSession(profile, verifier ?? new TestVerifier(accept: true), jumpHosts);
         session.StateChanged += s => _output.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] {s.State}: {s.StatusMessage}");
         _cleanup.Add(session);
         session.Start();

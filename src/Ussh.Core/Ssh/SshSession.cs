@@ -34,11 +34,13 @@ public sealed class SshSession : IAsyncDisposable
     private uint _cols = 80, _rows = 24, _pixelWidth, _pixelHeight;
     private IReadOnlyList<TunnelStatus> _tunnels = Array.Empty<TunnelStatus>();
 
-    public SshSession(ServerProfile profile, IHostKeyVerifier hostKeyVerifier)
+    /// <param name="jumpHosts">Bastions to connect through, outermost first (see <see cref="JumpHostResolver"/>).</param>
+    public SshSession(ServerProfile profile, IHostKeyVerifier hostKeyVerifier, IReadOnlyList<ServerProfile>? jumpHosts = null)
     {
-        // Own copy, so edits in Server Management (or locking the vault) don't affect a live
+        // Own copies, so edits in Server Management (or locking the vault) don't affect a live
         // session, and auto-reconnect still has credentials while the vault is locked.
         Profile = profile.Clone();
+        JumpHosts = (jumpHosts ?? Array.Empty<ServerProfile>()).Select(j => j.Clone()).ToList();
         _hostKeyVerifier = hostKeyVerifier;
         Emulator = new TerminalEmulator((int)_cols, (int)_rows, Profile.ScrollbackLines);
         Emulator.ResponseReady += Send;
@@ -46,7 +48,13 @@ public sealed class SshSession : IAsyncDisposable
 
     public Guid Id { get; } = Guid.NewGuid();
     public ServerProfile Profile { get; }
+    public IReadOnlyList<ServerProfile> JumpHosts { get; }
     public TerminalEmulator Emulator { get; }
+
+    /// <summary>"web1" or "web1 via bastion" (outermost jump host first).</summary>
+    public string Route => JumpHosts.Count == 0
+        ? $"{Profile.Host}:{Profile.Port}"
+        : $"{Profile.Host}:{Profile.Port} via {string.Join(" → ", JumpHosts.Select(j => j.DisplayName))}";
     public SessionState State { get; private set; } = SessionState.Connecting;
     public string StatusMessage { get; private set; } = "";
     public DateTimeOffset? ConnectedSince { get; private set; }
@@ -54,8 +62,11 @@ public sealed class SshSession : IAsyncDisposable
 
     public event Action<SshSession>? StateChanged;
 
-    /// <summary>Raised when the user accepts a new or changed host key, so it can be saved to the vault.</summary>
-    public event Action<SshSession, string>? HostKeyTrusted;
+    /// <summary>
+    /// Raised when the user accepts a new or changed host key, so it can be saved to the vault.
+    /// The Guid identifies which server it belongs to (the target or one of its jump hosts).
+    /// </summary>
+    public event Action<SshSession, Guid, string>? HostKeyTrusted;
 
     public void Start()
     {
@@ -146,7 +157,7 @@ public sealed class SshSession : IAsyncDisposable
             }
 
             SetState(everConnected ? SessionState.Reconnecting : SessionState.Connecting,
-                $"Connecting to {Profile.Host}:{Profile.Port}…");
+                $"Connecting to {Route}…");
 
             Connection connection;
             lock (_gate)
@@ -263,14 +274,20 @@ public sealed class SshSession : IAsyncDisposable
         Log.Info(LogSource, hostKey.IsChanged
             ? $"Host key CHANGED from {hostKey.KnownFingerprint} to {hostKey.Fingerprint}; accepted by user."
             : $"Host key {hostKey.Fingerprint} trusted on first use.");
-        Profile.HostKeyFingerprint = hostKey.Fingerprint;
-        try { HostKeyTrusted?.Invoke(this, hostKey.Fingerprint); }
+        foreach (var server in JumpHosts.Append(Profile).Where(p => p.Id == hostKey.ServerId))
+            server.HostKeyFingerprint = hostKey.Fingerprint;
+        try { HostKeyTrusted?.Invoke(this, hostKey.ServerId, hostKey.Fingerprint); }
         catch (Exception ex) { Log.Error(LogSource, "HostKeyTrusted handler threw.", ex); }
         return true;
     }
 
     private static (string Reason, bool Retryable) Classify(Exception ex, Connection connection)
     {
+        if (ex is JumpHostException jump)
+        {
+            var (reason, retryable) = Classify(jump.InnerException!, connection);
+            return ($"Jump host {jump.HostName}: {reason}", retryable);
+        }
         return ex switch
         {
             SessionConfigurationException => (ex.Message, false),
@@ -335,6 +352,9 @@ public sealed class SshSession : IAsyncDisposable
         private readonly TaskCompletionSource<Exception> _faulted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly uint _cols, _rows, _pixelWidth, _pixelHeight;
         private readonly List<ForwardedPort> _ports = new();
+        // Jump host clients (outermost first) and the forwards that chain them together.
+        private readonly List<SshClient> _hopClients = new();
+        private readonly List<ForwardedPortLocal> _hopForwards = new();
         private SshClient? _client;
         private ShellStream? _shell;
         // Distinguishing "the user typed exit" from "the network died": servers usually drop the
@@ -364,21 +384,34 @@ public sealed class SshSession : IAsyncDisposable
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(lifetime, _abort.Token);
             var token = linked.Token;
 
-            var info = new ConnectionInfo(Profile.Host, Profile.Port, Profile.Username, BuildAuthMethods())
+            // Each jump host connects to the next hop through a private local forward
+            // (127.0.0.1 on an OS-assigned port); the target connects through the last one.
+            var host = (_owner.JumpHosts.Count > 0 ? _owner.JumpHosts[0] : Profile).Host;
+            var port = (_owner.JumpHosts.Count > 0 ? _owner.JumpHosts[0] : Profile).Port;
+            for (var i = 0; i < _owner.JumpHosts.Count; i++)
             {
-                Timeout = TimeSpan.FromSeconds(Math.Clamp(Profile.ConnectTimeoutSeconds, 3, 120)),
-                Encoding = Encoding.UTF8,
-            };
-            _client = new SshClient(info);
-            if (Profile.KeepAliveSeconds > 0)
-                _client.KeepAliveInterval = TimeSpan.FromSeconds(Math.Max(5, Profile.KeepAliveSeconds));
-            _client.HostKeyReceived += OnHostKeyReceived;
-            _client.ErrorOccurred += (_, e) => _faulted.TrySetResult(e.Exception);
+                var jump = _owner.JumpHosts[i];
+                var next = i + 1 < _owner.JumpHosts.Count ? _owner.JumpHosts[i + 1] : Profile;
+                SshClient hop;
+                try
+                {
+                    hop = await ConnectClientAsync(jump, host, port, token).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (PendingHostKey == null && ex is not OperationCanceledException)
+                {
+                    throw new JumpHostException(jump.DisplayName, ex);
+                }
+                _hopClients.Add(hop);
 
-            await _client.ConnectAsync(token).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
+                var forward = new ForwardedPortLocal("127.0.0.1", 0, next.Host, (uint)next.Port);
+                forward.Exception += (_, e) => Log.Warn(_owner.LogSource, $"Jump via {jump.DisplayName} to {next.Host}:{next.Port}: {e.Exception.Message}");
+                hop.AddForwardedPort(forward);
+                forward.Start();
+                _hopForwards.Add(forward);
+                (host, port) = ("127.0.0.1", (int)forward.BoundPort);
+            }
 
-            SocketTuning.Apply(_client, TimeSpan.FromSeconds(Math.Max(30, Profile.KeepAliveSeconds * 3)));
+            _client = await ConnectClientAsync(Profile, host, port, token).ConfigureAwait(false);
 
             _shell = _client.CreateShellStream(
                 string.IsNullOrWhiteSpace(Profile.TerminalType) ? "xterm-256color" : Profile.TerminalType,
@@ -387,6 +420,38 @@ public sealed class SshSession : IAsyncDisposable
             _shell.Closed += (_, _) => _shellClosedByServer.TrySetResult();
 
             StartTunnels();
+        }
+
+        /// <summary>
+        /// Connects to <paramref name="server"/> at <paramref name="host"/>:<paramref name="port"/>
+        /// (its real address, or a local forward through a jump host), authenticating and
+        /// verifying the host key as that server.
+        /// </summary>
+        private async Task<SshClient> ConnectClientAsync(ServerProfile server, string host, int port, CancellationToken token)
+        {
+            var info = new ConnectionInfo(host, port, server.Username, BuildAuthMethods(server))
+            {
+                Timeout = TimeSpan.FromSeconds(Math.Clamp(server.ConnectTimeoutSeconds, 3, 120)),
+                Encoding = Encoding.UTF8,
+            };
+            var client = new SshClient(info);
+            if (server.KeepAliveSeconds > 0)
+                client.KeepAliveInterval = TimeSpan.FromSeconds(Math.Max(5, server.KeepAliveSeconds));
+            client.HostKeyReceived += (_, e) => OnHostKeyReceived(server, e);
+            // A failure on any hop breaks the chain, so it fails the whole connection.
+            client.ErrorOccurred += (_, e) => _faulted.TrySetResult(e.Exception);
+            try
+            {
+                await client.ConnectAsync(token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+            }
+            catch
+            {
+                client.Dispose();
+                throw;
+            }
+            SocketTuning.Apply(client, TimeSpan.FromSeconds(Math.Max(30, server.KeepAliveSeconds * 3)));
+            return client;
         }
 
         /// <summary>Runs until the shell ends or the connection fails. Returns why, and whether a retry makes sense.</summary>
@@ -472,15 +537,16 @@ public sealed class SshSession : IAsyncDisposable
 
         public void Probe()
         {
-            var client = _client;
-            if (client == null)
-                return;
+            var clients = _hopClients.Append(_client).OfType<SshClient>().ToList();
             _ = Task.Run(() =>
             {
+                foreach (var client in clients)
+                {
 #pragma warning disable CS0618 // one-off probe after resume; periodic keepalives use KeepAliveInterval
-                try { client.SendKeepAlive(); }
+                    try { client.SendKeepAlive(); }
 #pragma warning restore CS0618
-                catch (Exception ex) { _faulted.TrySetResult(ex); }
+                    catch (Exception ex) { _faulted.TrySetResult(ex); }
+                }
             });
         }
 
@@ -510,6 +576,13 @@ public sealed class SshSession : IAsyncDisposable
                 try { _shell?.Dispose(); } catch { }
                 try { if (_client?.IsConnected == true) _client.Disconnect(); } catch { }
                 try { _client?.Dispose(); } catch { }
+                // Then the jump chain, innermost first.
+                for (var i = _hopClients.Count - 1; i >= 0; i--)
+                {
+                    try { if (_hopForwards.Count > i && _hopForwards[i].IsStarted) _hopForwards[i].Stop(); } catch { }
+                    try { if (_hopClients[i].IsConnected) _hopClients[i].Disconnect(); } catch { }
+                    try { _hopClients[i].Dispose(); } catch { }
+                }
             });
             try
             {
@@ -522,23 +595,23 @@ public sealed class SshSession : IAsyncDisposable
             _abort.Dispose();
         }
 
-        private AuthenticationMethod[] BuildAuthMethods()
+        private static AuthenticationMethod[] BuildAuthMethods(ServerProfile server)
         {
-            var user = Profile.Username;
+            var user = server.Username;
             if (string.IsNullOrWhiteSpace(user))
                 throw new SessionConfigurationException("No username configured.");
 
-            switch (Profile.AuthMethod)
+            switch (server.AuthMethod)
             {
                 case AuthMethod.PrivateKey:
-                    if (string.IsNullOrWhiteSpace(Profile.PrivateKey))
+                    if (string.IsNullOrWhiteSpace(server.PrivateKey))
                         throw new SessionConfigurationException("No private key configured.");
                     try
                     {
-                        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(Profile.PrivateKey.Trim() + "\n"));
-                        var key = string.IsNullOrEmpty(Profile.PrivateKeyPassphrase)
+                        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(server.PrivateKey.Trim() + "\n"));
+                        var key = string.IsNullOrEmpty(server.PrivateKeyPassphrase)
                             ? new PrivateKeyFile(stream)
-                            : new PrivateKeyFile(stream, Profile.PrivateKeyPassphrase);
+                            : new PrivateKeyFile(stream, server.PrivateKeyPassphrase);
                         return new AuthenticationMethod[] { new PrivateKeyAuthenticationMethod(user, key) };
                     }
                     catch (Exception ex)
@@ -547,7 +620,7 @@ public sealed class SshSession : IAsyncDisposable
                     }
 
                 default:
-                    var password = Profile.Password ?? "";
+                    var password = server.Password ?? "";
                     // Many servers only offer keyboard-interactive; answer its password prompt too.
                     var interactive = new KeyboardInteractiveAuthenticationMethod(user);
                     interactive.AuthenticationPrompt += (_, e) =>
@@ -560,17 +633,19 @@ public sealed class SshSession : IAsyncDisposable
             }
         }
 
-        private void OnHostKeyReceived(object? sender, HostKeyEventArgs e)
+        private void OnHostKeyReceived(ServerProfile server, HostKeyEventArgs e)
         {
+            // Verified against the server's own record, so going through a jump host's local
+            // forward (127.0.0.1:random) doesn't weaken the check.
             var fingerprint = e.FingerPrintSHA256;
-            var known = Profile.HostKeyFingerprint;
+            var known = server.HostKeyFingerprint;
             if (known != null && string.Equals(known, fingerprint, StringComparison.Ordinal))
             {
                 e.CanTrust = true;
                 return;
             }
 
-            PendingHostKey = new HostKeyInfo(Profile.DisplayName, Profile.Host, Profile.Port,
+            PendingHostKey = new HostKeyInfo(server.Id, server.DisplayName, server.Host, server.Port,
                 e.HostKeyName, e.KeyLength, fingerprint, known);
             e.CanTrust = false;
         }

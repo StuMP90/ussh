@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Ussh.App.Services;
 using Ussh.Core.Models;
 using Ussh.Core.Security;
+using Ussh.Core.Ssh;
 
 namespace Ussh.App.ViewModels;
 
@@ -18,6 +19,12 @@ public sealed partial class ServerItemViewModel : ObservableObject
     public bool HasGroup => !string.IsNullOrWhiteSpace(Profile.Group);
     public int TunnelCount => Profile.Tunnels.Count(t => t.Enabled);
     public string? TunnelBadge => TunnelCount > 0 ? $"{TunnelCount} tunnel(s)" : null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasVia))]
+    private string? _via;
+
+    public bool HasVia => Via != null;
 
     public void Update(ServerProfile profile)
     {
@@ -68,6 +75,9 @@ public sealed partial class ServersTabViewModel : TabViewModel
     [ObservableProperty] private string _newPassword = "";
     [ObservableProperty] private string _confirmNewPassword = "";
     [ObservableProperty] private string? _settingsMessage;
+    [ObservableProperty] private ThemeOption? _defaultTheme;
+
+    public IReadOnlyList<ThemeOption> SettingsThemeOptions { get; } = ThemeOption.List();
 
     public bool ShowEmptyHint => Editor == null && !IsSettingsVisible;
     public string VaultLocation => Ussh.Core.AppPaths.VaultFile;
@@ -79,6 +89,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
         AutoLockMinutes = data.Settings.AutoLockMinutes;
         FontSize = (decimal)data.Settings.FontSize;
         FontFamily = data.Settings.FontFamily;
+        DefaultTheme = SettingsThemeOptions.FirstOrDefault(o => o.Name == data.Settings.DefaultTheme) ?? SettingsThemeOptions[0];
         ApplyFilter();
     }
 
@@ -98,6 +109,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
 
     private void ApplyFilter()
     {
+        UpdateVia();
         var terms = Filter.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var desired = _all
             .Where(i => terms.All(t =>
@@ -127,6 +139,40 @@ public sealed partial class ServersTabViewModel : TabViewModel
         }
     }
 
+    /// <summary>Shows "via bastion" under servers that use a jump host.</summary>
+    private void UpdateVia()
+    {
+        var servers = _main.Data?.Servers;
+        if (servers == null)
+            return;
+        foreach (var item in _all)
+        {
+            try
+            {
+                var chain = JumpHostResolver.Resolve(item.Profile, servers);
+                item.Via = chain.Count == 0 ? null : "via " + string.Join(" → ", chain.Select(c => c.DisplayName));
+            }
+            catch (JumpHostConfigurationException)
+            {
+                item.Via = "jump host missing";
+            }
+        }
+    }
+
+    private ServerEditorViewModel NewEditor(ServerProfile profile, bool isNew)
+    {
+        var servers = _main.Data?.Servers ?? new List<ServerProfile>();
+        var jumpOptions = new List<JumpHostOption> { JumpHostOption.Direct };
+        jumpOptions.AddRange(servers
+            .Where(s => JumpHostResolver.CanUseAsJumpHost(profile.Id, s, servers))
+            .OrderBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(JumpHostOption.For));
+        return new ServerEditorViewModel(profile, isNew, _dialogs, jumpOptions,
+            ThemeOption.List(_main.Data?.Settings.DefaultTheme ?? TerminalThemeDefaultName));
+    }
+
+    private const string TerminalThemeDefaultName = Ussh.App.Controls.TerminalTheme.DefaultName;
+
     partial void OnSelectedServerChanged(ServerItemViewModel? value)
     {
         if (value == null)
@@ -137,7 +183,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
         }
         IsSettingsVisible = false;
         if (Editor?.Id != value.Profile.Id)
-            Editor = new ServerEditorViewModel(value.Profile.Clone(), isNew: false, _dialogs);
+            Editor = NewEditor(value.Profile.Clone(), isNew: false);
     }
 
     [RelayCommand]
@@ -145,7 +191,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
     {
         SelectedServer = null;
         IsSettingsVisible = false;
-        Editor = new ServerEditorViewModel(new ServerProfile(), isNew: true, _dialogs);
+        Editor = NewEditor(new ServerProfile(), isNew: true);
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
@@ -156,19 +202,24 @@ public sealed partial class ServersTabViewModel : TabViewModel
         source.Name = string.IsNullOrWhiteSpace(source.Name) ? "" : source.Name + " (copy)";
         source.HostKeyFingerprint = null;
         SelectedServer = null;
-        Editor = new ServerEditorViewModel(source, isNew: true, _dialogs);
+        Editor = NewEditor(source, isNew: true);
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task DeleteServerAsync()
     {
         var item = SelectedServer!;
-        if (!await _dialogs.ConfirmAsync("Delete server", $"Delete \"{item.Name}\" ({item.Address})?\n\nIts saved password/key will be removed from the vault.", "Delete", danger: true))
-            return;
         var data = _main.Data;
         if (data == null)
             return;
+        var dependants = data.Servers.Where(s => s.JumpHostId == item.Profile.Id).ToList();
+        var warning = dependants.Count == 0 ? "" :
+            $"\n\nIt is the jump host for: {string.Join(", ", dependants.Select(d => d.DisplayName))}. They will connect directly instead.";
+        if (!await _dialogs.ConfirmAsync("Delete server", $"Delete \"{item.Name}\" ({item.Address})?\n\nIts saved password/key will be removed from the vault.{warning}", "Delete", danger: true))
+            return;
         data.Servers.RemoveAll(s => s.Id == item.Profile.Id);
+        foreach (var dependant in dependants)
+            dependant.JumpHostId = null;
         if (_main.SaveVault())
         {
             _all.Remove(item);
@@ -200,6 +251,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
             return;
 
         editor.MarkSaved();
+        _main.RefreshAppearance();
         var item = _all.FirstOrDefault(i => i.Profile.Id == profile.Id);
         if (item == null)
         {
@@ -219,7 +271,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
     private void RevertServer()
     {
         if (SelectedServer != null)
-            Editor = new ServerEditorViewModel(SelectedServer.Profile.Clone(), isNew: false, _dialogs);
+            Editor = NewEditor(SelectedServer.Profile.Clone(), isNew: false);
         else
             Editor = null;
     }
@@ -260,8 +312,12 @@ public sealed partial class ServersTabViewModel : TabViewModel
         data.Settings.AutoLockMinutes = (int)Math.Clamp(AutoLockMinutes, 0, 24 * 60);
         data.Settings.FontSize = (double)Math.Clamp(FontSize, 6, 48);
         data.Settings.FontFamily = string.IsNullOrWhiteSpace(FontFamily) ? new AppSettings().FontFamily : FontFamily.Trim();
+        data.Settings.DefaultTheme = DefaultTheme?.Name ?? TerminalThemeDefaultName;
         if (_main.SaveVault())
-            SettingsMessage = "Settings saved. Font changes apply to new tabs.";
+        {
+            SettingsMessage = "Settings saved.";
+            _main.RefreshAppearance();
+        }
     }
 
     [RelayCommand]
