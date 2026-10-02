@@ -88,6 +88,12 @@ public sealed class TransferItem
     /// <summary>ItemFinished has been raised for the current run.</summary>
     internal bool FinishNotified { get; set; }
 
+    /// <summary>The item's latest run. A cancelled run can still be unwinding after its state says Cancelled.</summary>
+    internal Task Worker { get; set; } = Task.CompletedTask;
+
+    /// <summary>Retried, waiting for the previous run to let go of the file before starting again.</summary>
+    internal bool RestartPending { get; set; }
+
     internal void SetTransferred(long bytes) => Interlocked.Exchange(ref _transferred, bytes);
 }
 
@@ -137,7 +143,7 @@ public sealed class TransferQueue : IAsyncDisposable
 
     public int ActiveCount
     {
-        get { lock (_items) return _items.Count(i => i.IsActive); }
+        get { lock (_items) return _items.Count(i => i.IsActive || i.RestartPending); }
     }
 
     /// <summary>Queues local files/folders for upload into <paramref name="remoteDirectory"/>. Returns once queued.</summary>
@@ -151,7 +157,7 @@ public sealed class TransferQueue : IAsyncDisposable
     /// <summary>Stops an item; its worker then reports it as cancelled.</summary>
     public void Cancel(TransferItem item)
     {
-        if (item.IsFinished)
+        if (item.IsFinished && !item.RestartPending)
             return;
         item.State = TransferState.Cancelled;
         try { item.Cancellation.Cancel(); } catch (ObjectDisposedException) { }
@@ -166,15 +172,37 @@ public sealed class TransferQueue : IAsyncDisposable
     /// <summary>Runs a failed or cancelled item again, resuming where it stopped.</summary>
     public void Retry(TransferItem item)
     {
-        if (item.State is not (TransferState.Failed or TransferState.Cancelled))
+        if (item.State is not (TransferState.Failed or TransferState.Cancelled) || item.RestartPending)
             return;
-        item.Cancellation = new CancellationTokenSource();
-        item.FinishNotified = false;
-        item.State = TransferState.Queued;
-        item.Error = null;
-        item.Attempts = 0;
-        item.FinishedAt = null;
-        _ = RunAsync(item);
+        var cancellation = new CancellationTokenSource();
+        item.Cancellation = cancellation;
+        item.RestartPending = true;
+        item.Worker = RestartAsync(item, item.Worker, cancellation);
+    }
+
+    /// <summary>
+    /// Starts a retry once the previous run has ended. A cancelled run stops at its next await, so
+    /// without this a quick retry would race it: two writers on one file, and the old run's
+    /// "cancelled" landing on the new one.
+    /// </summary>
+    private async Task RestartAsync(TransferItem item, Task previous, CancellationTokenSource cancellation)
+    {
+        await previous.ConfigureAwait(false); // RunAsync never throws
+        lock (item)
+        {
+            if (cancellation.IsCancellationRequested)
+            {
+                item.RestartPending = false;
+                return; // cancelled again before it restarted
+            }
+            item.FinishNotified = false;
+            item.State = TransferState.Queued;
+            item.Error = null;
+            item.Attempts = 0;
+            item.FinishedAt = null;
+            item.RestartPending = false; // after Queued, so ActiveCount never dips to zero here
+        }
+        await RunAsync(item).ConfigureAwait(false);
     }
 
     public void ClearFinished()
@@ -234,7 +262,7 @@ public sealed class TransferQueue : IAsyncDisposable
     {
         lock (_items)
             _items.Add(item);
-        _ = RunAsync(item);
+        item.Worker = RunAsync(item);
     }
 
     private async Task RunAsync(TransferItem item)
