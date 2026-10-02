@@ -244,6 +244,9 @@
         <TextBox PasswordChar="●" Watermark="Confirm new password" Text="{Binding ConfirmNewPassword}" />
         <Button Content="Change password" Command="{Binding ChangePasswordCommand}" />
 
+        <TextBlock Classes="h2" Text="About" />
+        <SelectableTextBlock Text="{Binding AppVersion}" />
+
         <TextBlock Classes="h2" Text="Data" />
         <SelectableTextBlock Text="{Binding VaultLocation}" Classes="muted" FontSize="12" />
         <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"

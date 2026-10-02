@@ -84,6 +84,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
 
     public bool ShowEmptyHint => Editor == null && !IsSettingsVisible;
     public string VaultLocation => Ussh.Core.AppPaths.VaultFile;
+    public string AppVersion => AppInfo.DisplayVersion;
 
     public void Load(VaultData data)
     {

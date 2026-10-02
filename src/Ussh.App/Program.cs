@@ -19,7 +19,7 @@ internal static class Program
             e.SetObserved();
         };
 
-        Log.Info("app", $"Starting ussh {typeof(Program).Assembly.GetName().Version} on {Environment.OSVersion}.");
+        Log.Info("app", $"Starting uSSH {AppInfo.FullVersion} on {Environment.OSVersion}.");
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

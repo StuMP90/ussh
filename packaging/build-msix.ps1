@@ -60,7 +60,7 @@ foreach ($arch in $Architecture) {
         -replace '\$\(Architecture\)', $arch |
         Set-Content -Encoding UTF8 (Join-Path $layout "AppxManifest.xml")
 
-    $msix = Join-Path $root "$OutputDir/ussh_${Version}_$arch.msix"
+    $msix = Join-Path $root "$OutputDir/uSSH_${Version}_$arch.msix"
     & $makeappx pack /o /d $layout /p $msix
     if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }
     $packages += $msix

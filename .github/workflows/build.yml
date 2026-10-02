@@ -1,16 +1,31 @@
-name: build
+name: Build and Release
 
+# Pushing a tag vX.Y.Z (git tag v1.0.7 && git push origin v1.0.7) builds that version, then
+# creates the GitHub release "Release v1.0.7" with generated notes and the binaries attached.
+# Pushes to main, pull requests and manual runs do the same tests and builds with version
+# 0.0.<run number>, kept as workflow artifacts only.
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "MSIX version (x.y.z.0)"
-        default: "0.1.0.0"
+
+permissions:
+  contents: write # create the release and upload its assets
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      msix_version: ${{ steps.version.outputs.msix_version }}
+      is_release: ${{ steps.version.outputs.is_release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: packaging/ci-version.sh
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -25,21 +40,21 @@ jobs:
       - run: dotnet test --configuration Release
 
   linux:
-    needs: test
+    needs: [version, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: packaging/publish-linux.sh 0.1.0 x64
+      - run: packaging/publish-linux.sh "${{ needs.version.outputs.version }}" x64
       - uses: actions/upload-artifact@v4
         with:
           name: ussh-linux-x64
           path: artifacts/linux/*.tar.gz
 
   msix:
-    needs: test
+    needs: [version, test]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +67,7 @@ jobs:
         shell: pwsh
         run: >
           ./packaging/build-msix.ps1
-          -Version "${{ github.event.inputs.version || '0.1.0.0' }}"
+          -Version "${{ needs.version.outputs.msix_version }}"
           -Architecture x64,arm64
           -IdentityName "${{ vars.MSIX_IDENTITY_NAME || 'ussh.dev' }}"
           -Publisher "${{ vars.MSIX_PUBLISHER || 'CN=ussh-dev' }}"
@@ -61,3 +76,25 @@ jobs:
         with:
           name: ussh-msix
           path: artifacts/msix/*.msix
+
+  release:
+    # Only for version tags, and only once every build has succeeded.
+    if: needs.version.outputs.is_release == 'true'
+    needs: [version, linux, msix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: Release ${{ github.ref_name }}
+          files: |
+            dist/*.msix
+            dist/*.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true

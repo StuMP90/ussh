@@ -145,6 +145,25 @@ check failed or any session didn't recover.
 
 ## Packaging
 
+### Releases and version numbers
+
+Version numbers come from git tags. Push a tag like `v1.0.7`
+(`git tag v1.0.7 && git push origin v1.0.7`) and the workflow (`.github/workflows/build.yml`)
+runs the tests, builds that version, and creates the GitHub release "Release v1.0.7" with
+generated notes and **the binaries attached**:
+
+- `uSSH_1.0.7.0_x64.msix` and `uSSH_1.0.7.0_arm64.msix` (the Store needs four parts, ending in 0)
+- `ussh-1.0.7-linux-x64.tar.gz`
+
+The tag must be `vMAJOR.MINOR.PATCH`. Anything else (`v1.0`, `1.0.7`, `v1.0.7-beta`) fails the
+build rather than producing an oddly numbered Store package. Each Store submission needs a
+higher version than the last.
+
+Pushes to `main`, pull requests and manual runs do the same tests and builds with version `0.0.<run number>`,
+available only as workflow artifacts, so a test build can't be mistaken for a release. Local
+builds report `0.1.0` (from `Directory.Build.props`). The running version shows in Settings → About and
+on the lock screen; the log records it at startup along with the commit it was built from.
+
 ### Microsoft Store (MSIX)
 
 The Store signs submitted MSIX packages itself, so no code-signing certificate is needed.
@@ -163,9 +182,9 @@ The Store signs submitted MSIX packages itself, so no code-signing certificate i
 For a local sideload test, use `./packaging/build-msix.ps1 -SelfSign` and follow the printed
 steps to trust the dev certificate.
 
-The GitHub Actions workflow (`.github/workflows/build.yml`) runs the tests and builds both MSIX
-packages and a Linux tarball on every push. Set the repository variables `MSIX_IDENTITY_NAME`,
-`MSIX_PUBLISHER` and `MSIX_PUBLISHER_DISPLAY_NAME` to have it produce Store-ready packages.
+For Store-ready packages from CI, set the repository variables `MSIX_IDENTITY_NAME`,
+`MSIX_PUBLISHER` and `MSIX_PUBLISHER_DISPLAY_NAME` (Settings → Secrets and variables →
+Actions → Variables) to the values from Partner Center.
 
 ### Linux
 

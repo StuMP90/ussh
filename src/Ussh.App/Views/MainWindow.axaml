@@ -79,6 +79,7 @@
                   Content="{Binding UnlockButtonText}" Command="{Binding UnlockCommand}" IsDefault="True" />
           <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
           <TextBlock Classes="muted" Text="{Binding LiveSessionNote}" IsVisible="{Binding LiveSessionNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Classes="muted" FontSize="11" Text="{Binding AppVersion}" HorizontalAlignment="Right" />
         </StackPanel>
       </Border>
     </Grid>

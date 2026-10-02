@@ -82,6 +82,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ? $"Create an admin password. It encrypts your saved servers, passwords and keys, and is required to connect or change server settings. Minimum {Vault.MinimumPasswordLength} characters. It cannot be recovered if forgotten."
         : "Enter the admin password to manage servers and open connections.";
 
+    public string AppVersion => AppInfo.DisplayVersion;
+
     public string UnlockButtonText => IsSetupRequired ? "Create vault" : "Unlock";
 
     public string? LiveSessionNote
