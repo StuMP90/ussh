@@ -257,6 +257,12 @@ The same list is in the app: **Help** in the top bar, or **Ctrl+Shift+H**.
 | Ctrl+Shift+L | Lock |
 | Ctrl+S | Save server (in the editor) |
 
+## Privacy
+
+zSSH collects nothing: no accounts, analytics, telemetry or update checks. It only connects to the
+servers and storage you add. See the [privacy policy](PRIVACY.md), which is also the policy linked
+from the Microsoft Store listing.
+
 ## Known limitations and roadmap
 
 - File browser: S3 renames are copy-then-delete (S3 has no rename), so renaming a large folder
