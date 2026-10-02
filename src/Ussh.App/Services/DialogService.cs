@@ -93,7 +93,7 @@ public sealed class DialogService
     public Task<(int Choice, bool Checked)> ChooseAsync(string title, string message, IReadOnlyList<string> buttons, string? checkbox = null) =>
         OnUiThread(async () =>
         {
-            var dialog = NewDialog(title, 520);
+            var dialog = NewDialog(title, Math.Max(520, 140 * buttons.Count));
             var choice = -1;
             var box = checkbox == null ? null : new CheckBox { Content = checkbox };
             var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };

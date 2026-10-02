@@ -165,6 +165,51 @@ public sealed class SftpTests : IDisposable
     }
 
     [Fact]
+    public async Task OverwriteIfDifferentComparesSizeAndTime()
+    {
+        if (Start() is not { } server) return;
+        var asked = 0;
+        var (_, queue) = Open(server, conflict: _ =>
+        {
+            Interlocked.Increment(ref asked);
+            return Task.FromResult(new ConflictDecision(ConflictChoice.OverwriteIfDifferent, ApplyToAll: true));
+        });
+        var now = DateTime.UtcNow;
+        // name → (local content, local time, remote content, remote time)
+        var cases = new Dictionary<string, (string Local, DateTime LocalTime, string Remote, DateTime RemoteTime)>
+        {
+            ["same.txt"] = ("aaaa", now.AddHours(-1), "AAAA", now),            // same size, older → skip
+            ["resized.txt"] = ("bbbbbb", now.AddHours(-1), "BB", now),          // size differs → overwrite
+            ["newer.txt"] = ("cccc", now, "CCCC", now.AddHours(-1)),            // newer → overwrite
+            ["nearly.txt"] = ("dddd", now.AddSeconds(1), "DDDD", now),          // within 2s → skip
+        };
+        var entries = new List<FileEntry>();
+        foreach (var (name, c) in cases)
+        {
+            var local = Path.Combine(_local, name);
+            File.WriteAllText(local, c.Local);
+            File.SetLastWriteTimeUtc(local, c.LocalTime);
+            var remote = Path.Combine(server.SftpRoot!, name);
+            File.WriteAllText(remote, c.Remote);
+            File.SetLastWriteTimeUtc(remote, c.RemoteTime);
+            entries.Add((await new LocalFileSystem().GetEntryAsync(local, default))!);
+        }
+
+        await queue.UploadAsync(entries, "/");
+        await WaitForQueue(queue);
+
+        Assert.Equal(1, asked); // applied to the whole transfer
+        string Remote(string name) => File.ReadAllText(Path.Combine(server.SftpRoot!, name));
+        Assert.Equal("AAAA", Remote("same.txt"));
+        Assert.Equal("bbbbbb", Remote("resized.txt"));
+        Assert.Equal("cccc", Remote("newer.txt"));
+        Assert.Equal("DDDD", Remote("nearly.txt"));
+        var skipped = queue.Items.Where(i => i.State == TransferState.Skipped).Select(i => i.Name).Order();
+        Assert.Equal(new[] { "nearly.txt", "same.txt" }, skipped);
+        Assert.All(queue.Items.Where(i => i.State == TransferState.Skipped), i => Assert.Equal("up to date", i.Error));
+    }
+
+    [Fact]
     public async Task UploadResumesAfterConnectionDrop()
     {
         if (Start() is not { } server) return;

@@ -27,6 +27,11 @@ public enum ConflictChoice
     Skip,
     /// <summary>Keep both: the new copy gets a free name like "file (1).txt".</summary>
     KeepBoth,
+    /// <summary>
+    /// Overwrite only when the sizes differ or the file being copied is newer; otherwise skip
+    /// it as up to date.
+    /// </summary>
+    OverwriteIfDifferent,
     /// <summary>Cancel the rest of this batch.</summary>
     CancelBatch,
 }
@@ -44,15 +49,19 @@ public sealed class TransferItem
 {
     private long _transferred;
 
-    internal TransferItem(TransferBatch batch, TransferDirection direction, string source, string destination, string name, long size)
+    internal TransferItem(TransferBatch batch, TransferDirection direction, FileEntry source, string destination)
     {
         Batch = batch;
         Direction = direction;
-        SourcePath = source;
+        SourcePath = source.Path;
+        SourceModified = source.Modified;
         DestinationPath = destination;
-        Name = name;
-        TotalBytes = size;
+        Name = source.Name;
+        TotalBytes = source.Size;
     }
+
+    /// <summary>When the source file was last modified (for "overwrite if different").</summary>
+    public DateTimeOffset? SourceModified { get; }
 
     public Guid Id { get; } = Guid.NewGuid();
     public TransferBatch Batch { get; }
@@ -196,7 +205,7 @@ public sealed class TransferQueue : IAsyncDisposable
         {
             if (!entry.IsDirectory)
             {
-                Add(new TransferItem(batch, direction, entry.Path, destination.Combine(destinationDirectory, entry.Name), entry.Name, entry.Size));
+                Add(new TransferItem(batch, direction, entry, destination.Combine(destinationDirectory, entry.Name)));
                 continue;
             }
             // Recreate the folder structure, then queue its files.
@@ -214,7 +223,7 @@ public sealed class TransferQueue : IAsyncDisposable
                 }
                 else
                 {
-                    Add(new TransferItem(batch, direction, item.Path, target, item.Name, item.Size));
+                    Add(new TransferItem(batch, direction, item, target));
                 }
             }
         }
@@ -293,6 +302,9 @@ public sealed class TransferQueue : IAsyncDisposable
                 item.Batch.Cancelled = true;
                 Finish(item, TransferState.Cancelled, null);
                 return false;
+            case ConflictChoice.OverwriteIfDifferent when !IsDifferent(item, existing):
+                Finish(item, TransferState.Skipped, "up to date");
+                return false;
             case ConflictChoice.KeepBoth:
                 var directory = destination.Parent(item.DestinationPath) ?? "";
                 var free = await FileOperations.FreeNameAsync(destination, directory, item.Name, token).ConfigureAwait(false);
@@ -301,6 +313,20 @@ public sealed class TransferQueue : IAsyncDisposable
             default:
                 return true; // overwrite: the copy below replaces it
         }
+    }
+
+    /// <summary>
+    /// True if <paramref name="existing"/> should be replaced: the sizes differ, or the source is
+    /// newer. Times are compared with a 2-second allowance, since servers and file systems keep
+    /// modification times at different precision (FAT and some servers to 2s, SFTP to 1s).
+    /// </summary>
+    internal static bool IsDifferent(TransferItem item, FileEntry existing)
+    {
+        if (existing.IsDirectory || existing.Size != item.TotalBytes)
+            return true;
+        if (item.SourceModified is not { } source || existing.Modified is not { } destination)
+            return false; // same size and no times to compare: treat as up to date
+        return source - destination > TimeSpan.FromSeconds(2);
     }
 
     private async Task TransferWithRetriesAsync(TransferItem item)

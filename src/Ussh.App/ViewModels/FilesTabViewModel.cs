@@ -145,16 +145,18 @@ public sealed partial class FilesTabViewModel : TabViewModel
         var details = existing.IsDirectory
             ? "A folder with that name exists."
             : $"Existing: {FileRowViewModel.FormatSize(existing.Size)}, modified {existing.Modified?.ToLocalTime():yyyy-MM-dd HH:mm}.\n" +
-              $"New: {FileRowViewModel.FormatSize(item.TotalBytes)}.";
+              $"New: {FileRowViewModel.FormatSize(item.TotalBytes)}, modified {item.SourceModified?.ToLocalTime():yyyy-MM-dd HH:mm}.";
         var (choice, applyToAll) = await _dialogs.ChooseAsync("File already exists",
-            $"\"{item.Name}\" already exists on {where}:\n{item.DestinationPath}\n\n{details}",
-            new[] { "Overwrite", "Keep both", "Skip", "Cancel transfer" },
+            $"\"{item.Name}\" already exists on {where}:\n{item.DestinationPath}\n\n{details}\n\n" +
+            "\"Overwrite if different\" replaces it only if the sizes differ or this copy is newer; otherwise it's skipped as up to date.",
+            new[] { "Overwrite", "Overwrite if different", "Keep both", "Skip", "Cancel transfer" },
             "Do the same for the rest of this transfer");
         var decision = choice switch
         {
             0 => ConflictChoice.Overwrite,
-            1 => ConflictChoice.KeepBoth,
-            2 => ConflictChoice.Skip,
+            1 => ConflictChoice.OverwriteIfDifferent,
+            2 => ConflictChoice.KeepBoth,
+            3 => ConflictChoice.Skip,
             _ => ConflictChoice.CancelBatch,
         };
         return new ConflictDecision(decision, applyToAll);

@@ -56,7 +56,7 @@ public sealed partial class TransferRowViewModel : ObservableObject
             TransferState.Completed => "Done",
             TransferState.Failed => "Failed: " + Item.Error,
             TransferState.Cancelled => "Cancelled",
-            TransferState.Skipped => "Skipped (already exists)",
+            TransferState.Skipped => $"Skipped ({Item.Error ?? "already exists"})",
             _ => Item.State.ToString(),
         };
         CanCancel = Item.IsActive;

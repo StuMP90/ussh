@@ -17,8 +17,10 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
 - **Dual-pane file browser** (FileZilla style), in its own tab: this computer on the left, the
   server or bucket on the right. Transfer with the arrow buttons, double-click / Enter, dragging
   between panes, or dropping files from your file manager onto the remote side. Whole folders
-  copy recursively; existing files prompt *Overwrite / Keep both / Skip* (optionally for the
-  rest of the transfer). New folder, rename, delete (with a file count before confirming), and
+  copy recursively; existing files prompt *Overwrite / Overwrite if different / Keep both /
+  Skip* (optionally for the rest of the transfer). *Overwrite if different* replaces a file only
+  when the sizes differ or the copy being sent is newer (2-second tolerance), so re-sending a
+  folder only transfers what changed. New folder, rename, delete (with a file count before confirming), and
   permissions on SFTP.
 - **Transfer queue** under the panes: progress, speed, time left, cancel and retry per file,
   and a header indicator while transfers run in any tab. Dropped connections are retried
