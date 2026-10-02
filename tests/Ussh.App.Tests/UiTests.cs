@@ -572,6 +572,67 @@ public sealed class UiTests : IDisposable
         await sessions.DisposeAsync();
     }
 
+    [AvaloniaFact]
+    public async Task ShellExitClosesOrKeepsThePanePerServerAndDefault()
+    {
+        var server = SshTestServer.TryStart();
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        var keeper = AddServer(vm, "keeper", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        AddServer(vm, "closer", "", "127.0.0.1", Environment.UserName, port: server.Port, password: SshTestServer.Password);
+        var editor = vm.Servers.Editor!;
+        Assert.Equal("Default (Keep the pane open (show Reconnect))", editor.ShellExitOptions[0].Label);
+        editor.SelectedShellExit = editor.ShellExitOptions.Single(o => o.Value == ShellExitAction.Close);
+        vm.Servers.SaveServerCommand.Execute(null);
+        var closer = vm.Data!.Servers.Single(s => s.Name == "closer");
+        Assert.Equal(ShellExitAction.Close, closer.OnShellExit);
+
+        // Side by side: "closer" (override: close) and "keeper" (default: keep open).
+        vm.ConnectTogether(new[] { keeper, closer });
+        var tab = (TerminalTabViewModel)vm.SelectedTab!;
+        await WaitUntil(() => tab.Panes.All(p => p.Session.State == SessionState.Connected), "both connected");
+        var (keeperPane, closerPane) = (tab.Panes[0], tab.Panes[1]);
+
+        closerPane.Session.Send("exit\r");
+        await WaitUntil(() => tab.Panes.Count == 1, "closer pane closed");
+        Assert.Same(keeperPane, tab.Panes.Single());
+        Assert.Equal(SessionState.Closed, closerPane.Session.State);
+
+        keeperPane.Session.Send("exit\r");
+        await WaitUntil(() => keeperPane.Session.State == SessionState.Disconnected, "keeper exited");
+        await Pump(1500);
+        Assert.Contains(tab, vm.Tabs); // kept open, with the Reconnect banner
+        Assert.True(keeperPane.ShowBanner && keeperPane.CanReconnect);
+        await vm.CloseTabAsync(tab);
+
+        // Global default "close": the last pane closing closes the tab.
+        vm.Servers.ShowSettingsCommand.Execute(null);
+        vm.Servers.DefaultShellExit = vm.Servers.SettingsShellExitOptions.Single(o => o.Value == ShellExitAction.Close);
+        vm.Servers.SaveSettingsCommand.Execute(null);
+        Assert.Equal(ShellExitAction.Close, vm.Settings.OnShellExit);
+        vm.Connect(keeper);
+        var single = (TerminalTabViewModel)vm.SelectedTab!;
+        await WaitUntil(() => single.FocusedPane.Session.State == SessionState.Connected, "keeper again");
+        single.FocusedPane.Session.Send("exit\r");
+        await WaitUntil(() => !vm.Tabs.Contains(single), "tab closed on exit");
+
+        // A dropped connection never auto-closes, even with "close" set.
+        vm.Connect(keeper);
+        var dropped = (TerminalTabViewModel)vm.SelectedTab!;
+        await WaitUntil(() => dropped.FocusedPane.Session.State == SessionState.Connected, "keeper third time");
+        server.Stop();
+        await WaitUntil(() => dropped.FocusedPane.Session.State == SessionState.Reconnecting, "dropped");
+        await Pump(1500);
+        Assert.Contains(dropped, vm.Tabs);
+
+        dropped.FocusedPane.Session.Disconnect();
+        await sessions.DisposeAsync();
+    }
+
     private static void AssertTerminalBackground(Window window, Color expected)
     {
         var terminal = window.GetVisualDescendants().OfType<TerminalControl>().Single();

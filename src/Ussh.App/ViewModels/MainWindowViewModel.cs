@@ -395,6 +395,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(LiveSessionNote));
     }
 
+    /// <summary>What to do when this server's shell exits: its own choice, else the default from settings.</summary>
+    public ShellExitAction ResolveShellExitAction(ServerProfile profile) =>
+        (SavedProfile(profile.Id) ?? profile).OnShellExit ?? Settings.OnShellExit;
+
     /// <summary>The theme for a server: its own choice, else the default from settings.</summary>
     public TerminalTheme ResolveTheme(ServerProfile profile) =>
         TerminalTheme.Find(profile.ThemeName ?? Settings.DefaultTheme);

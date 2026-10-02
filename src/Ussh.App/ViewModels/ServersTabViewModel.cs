@@ -76,6 +76,9 @@ public sealed partial class ServersTabViewModel : TabViewModel
     [ObservableProperty] private string _confirmNewPassword = "";
     [ObservableProperty] private string? _settingsMessage;
     [ObservableProperty] private ThemeOption? _defaultTheme;
+    [ObservableProperty] private ShellExitOption? _defaultShellExit;
+
+    public IReadOnlyList<ShellExitOption> SettingsShellExitOptions { get; } = ShellExitOption.List();
 
     public IReadOnlyList<ThemeOption> SettingsThemeOptions { get; } = ThemeOption.List();
 
@@ -90,6 +93,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
         FontSize = (decimal)data.Settings.FontSize;
         FontFamily = data.Settings.FontFamily;
         DefaultTheme = SettingsThemeOptions.FirstOrDefault(o => o.Name == data.Settings.DefaultTheme) ?? SettingsThemeOptions[0];
+        DefaultShellExit = SettingsShellExitOptions.First(o => o.Value == data.Settings.OnShellExit);
         ApplyFilter();
     }
 
@@ -168,7 +172,8 @@ public sealed partial class ServersTabViewModel : TabViewModel
             .OrderBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(JumpHostOption.For));
         return new ServerEditorViewModel(profile, isNew, _dialogs, jumpOptions,
-            ThemeOption.List(_main.Data?.Settings.DefaultTheme ?? TerminalThemeDefaultName));
+            ThemeOption.List(_main.Data?.Settings.DefaultTheme ?? TerminalThemeDefaultName),
+            ShellExitOption.List(_main.Data?.Settings.OnShellExit ?? ShellExitAction.KeepOpen));
     }
 
     private const string TerminalThemeDefaultName = Ussh.App.Controls.TerminalTheme.DefaultName;
@@ -331,6 +336,7 @@ public sealed partial class ServersTabViewModel : TabViewModel
         data.Settings.FontSize = (double)Math.Clamp(FontSize, 6, 48);
         data.Settings.FontFamily = string.IsNullOrWhiteSpace(FontFamily) ? new AppSettings().FontFamily : FontFamily.Trim();
         data.Settings.DefaultTheme = DefaultTheme?.Name ?? TerminalThemeDefaultName;
+        data.Settings.OnShellExit = DefaultShellExit?.Value ?? ShellExitAction.KeepOpen;
         if (_main.SaveVault())
         {
             SettingsMessage = "Settings saved.";

@@ -20,4 +20,16 @@ public sealed class AppSettings
 
     /// <summary>Terminal theme for servers that don't choose their own.</summary>
     public string DefaultTheme { get; set; } = "uSSH Dark";
+
+    /// <summary>What happens when you type <c>exit</c> (servers can override it).</summary>
+    public ShellExitAction OnShellExit { get; set; } = ShellExitAction.KeepOpen;
+}
+
+/// <summary>What to do with a pane when its remote shell exits cleanly (never on drops or errors).</summary>
+public enum ShellExitAction
+{
+    /// <summary>Keep the pane with its last output and a Reconnect button.</summary>
+    KeepOpen,
+    /// <summary>Close the pane (and the tab, if it was the last pane).</summary>
+    Close,
 }

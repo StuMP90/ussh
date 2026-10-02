@@ -51,9 +51,11 @@ explicitly:
 | UI freezes under heavy output | Output is parsed off the UI thread; the screen repaints at most ~60×/s, only when something changed |
 | Terminal parser crashes or hangs on odd output | The emulator is a hardened fork (see below). A 50,000-session fuzz run passes with no failures, and every parse is guarded so a bad sequence skips a chunk instead of killing the tab |
 
-Typing `exit` closes the tab's session cleanly, without reconnecting. Auto-reconnect starts a
-**new** shell; to keep running programs across reconnects, use `tmux` or `screen` on the
-server.
+Typing `exit` ends the session cleanly, without reconnecting. By default the pane stays open
+with its last output and a Reconnect button; set *When the shell exits → Close the pane* in
+Settings (or per server, which overrides it) to close the pane instead, or the tab if it was the
+last pane. Dropped connections and errors never auto-close. Auto-reconnect starts a **new**
+shell; to keep running programs across reconnects, use `tmux` or `screen` on the server.
 
 ## Security model
 
@@ -73,6 +75,10 @@ server.
   cache lets new panes and tabs for that server reuse it until uSSH is locked or closed.
   Nothing prompts while locked.
 - Logs (`logs/` next to the vault) never contain secrets.
+- uSSH always starts with no sessions open: open tabs, panes and their layout are not saved
+  between runs, and won't be. Restoring them would mean reconnecting automatically at startup
+  and keeping a record of what you were connected to; every run instead starts at the server
+  list, behind the admin password.
 
 ## Project layout
 
@@ -192,8 +198,7 @@ The tarball is self-contained and includes an `install.sh` (installs to `~/.loca
 
 ## Known limitations and roadmap
 
-- Not yet: SFTP browser, PuTTY `.ppk` keys (convert with PuTTYgen), custom/imported themes,
-  and per-server font settings. Pane layouts aren't saved between runs.
+- Not yet: SFTP browser and PuTTY `.ppk` keys (convert with PuTTYgen).
 - Line reflow on resize is disabled (the upstream reflow code is unreliable); long lines are
   truncated when the window narrows, like xterm.
 - Rendering redraws the whole visible screen when anything changes. That's fine for normal

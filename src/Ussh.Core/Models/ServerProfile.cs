@@ -46,6 +46,9 @@ public sealed class ServerProfile
     /// <summary>Another saved server to connect through (bastion). It may itself have a jump host.</summary>
     public Guid? JumpHostId { get; set; }
 
+    /// <summary>Overrides <see cref="AppSettings.OnShellExit"/> for this server; null uses the default.</summary>
+    public ShellExitAction? OnShellExit { get; set; }
+
     /// <summary>Terminal colour theme name; null uses the default from settings.</summary>
     public string? ThemeName { get; set; }
 

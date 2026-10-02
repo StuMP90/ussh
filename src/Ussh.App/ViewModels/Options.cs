@@ -50,3 +50,26 @@ public sealed class ThemeOption
 
     public override string ToString() => Label;
 }
+
+/// <summary>An entry in a "when the shell exits" picker. A null Value means "use the default".</summary>
+public sealed record ShellExitOption(ShellExitAction? Value, string Label)
+{
+    private static string Describe(ShellExitAction action) => action switch
+    {
+        ShellExitAction.Close => "Close the pane",
+        _ => "Keep the pane open (show Reconnect)",
+    };
+
+    /// <summary>Both actions, optionally preceded by "Default (…)" for per-server pickers.</summary>
+    public static IReadOnlyList<ShellExitOption> List(ShellExitAction? defaultAction = null)
+    {
+        var options = new List<ShellExitOption>();
+        if (defaultAction is { } fallback)
+            options.Add(new ShellExitOption(null, $"Default ({Describe(fallback)})"));
+        options.Add(new ShellExitOption(ShellExitAction.KeepOpen, Describe(ShellExitAction.KeepOpen)));
+        options.Add(new ShellExitOption(ShellExitAction.Close, Describe(ShellExitAction.Close)));
+        return options;
+    }
+
+    public override string ToString() => Label;
+}

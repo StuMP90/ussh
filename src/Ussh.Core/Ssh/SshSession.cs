@@ -64,6 +64,12 @@ public sealed class SshSession : IAsyncDisposable
     public SessionState State { get; private set; } = SessionState.Connecting;
     public string StatusMessage { get; private set; } = "";
     public DateTimeOffset? ConnectedSince { get; private set; }
+
+    /// <summary>
+    /// True while the session is disconnected because the remote shell exited cleanly (the user
+    /// typed <c>exit</c>), as opposed to a drop, failure or user disconnect.
+    /// </summary>
+    public bool EndedByShellExit { get; private set; }
     public IReadOnlyList<TunnelStatus> Tunnels => _tunnels;
 
     public event Action<SshSession>? StateChanged;
@@ -154,6 +160,7 @@ public sealed class SshSession : IAsyncDisposable
         {
             if (_userStopped)
             {
+                EndedByShellExit = false;
                 SetState(SessionState.Disconnected, "Disconnected");
                 // Loop: a stale wake signal (e.g. from Disconnect itself) must not reconnect.
                 while (_userStopped && !token.IsCancellationRequested)
@@ -162,6 +169,7 @@ public sealed class SshSession : IAsyncDisposable
                 continue;
             }
 
+            EndedByShellExit = false;
             SetState(everConnected ? SessionState.Reconnecting : SessionState.Connecting,
                 $"Connecting to {Route}…");
 
@@ -243,6 +251,7 @@ public sealed class SshSession : IAsyncDisposable
             }
 
             // A clean shell exit is a normal end, not an error.
+            EndedByShellExit = reason == ShellExitedReason;
             SetState(retryable || reason == ShellExitedReason ? SessionState.Disconnected : SessionState.Failed, reason);
             await WaitForWakeAsync(null, token).ConfigureAwait(false);
             failures = 0;

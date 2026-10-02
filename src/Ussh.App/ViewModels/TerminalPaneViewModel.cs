@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Ussh.App.Controls;
+using Ussh.Core.Models;
 using Ussh.Core.Ssh;
 
 namespace Ussh.App.ViewModels;
@@ -17,6 +18,7 @@ public sealed partial class TerminalPaneViewModel : LayoutNode
     private static readonly IBrush BroadcastBrush = new SolidColorBrush(Color.Parse("#F0A030"));
 
     private readonly DispatcherTimer _uptimeTimer;
+    private bool _closingAfterExit;
 
     public TerminalPaneViewModel(SshSession session, TerminalTabViewModel tab, MainWindowViewModel main)
     {
@@ -118,6 +120,16 @@ public sealed partial class TerminalPaneViewModel : LayoutNode
             : string.Join("   ", tunnels.Select(t => (t.Active ? "● " : "✕ ") + t.Definition.Describe() + (t.Error != null ? $" ({t.Error})" : "")));
         OnPropertyChanged(nameof(Uptime));
         Tab.OnPaneStateChanged();
+
+        // `exit` typed in the shell: close the pane if that's the configured behaviour. Only for a
+        // clean shell exit; drops, failures and manual disconnects always keep the pane.
+        if (state == SessionState.Disconnected && Session.EndedByShellExit && !_closingAfterExit
+            && Tab.Panes.Contains(this)
+            && Tab.Main.ResolveShellExitAction(Session.Profile) == ShellExitAction.Close)
+        {
+            _closingAfterExit = true;
+            Dispatcher.UIThread.Post(() => _ = Tab.Main.ClosePaneAsync(Tab, this));
+        }
     }
 
     private static string FormatDuration(TimeSpan span) =>

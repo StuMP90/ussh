@@ -15,8 +15,11 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     private readonly DialogService _dialogs;
 
     public ServerEditorViewModel(ServerProfile profile, bool isNew, DialogService dialogs,
-        IReadOnlyList<JumpHostOption> jumpHostOptions, IReadOnlyList<ThemeOption> themeOptions)
+        IReadOnlyList<JumpHostOption> jumpHostOptions, IReadOnlyList<ThemeOption> themeOptions,
+        IReadOnlyList<ShellExitOption> shellExitOptions)
     {
+        ShellExitOptions = shellExitOptions;
+        _selectedShellExit = shellExitOptions.FirstOrDefault(o => o.Value == profile.OnShellExit) ?? shellExitOptions[0];
         _id = profile.Id;
         _dialogs = dialogs;
         IsNew = isNew;
@@ -59,6 +62,15 @@ public sealed partial class ServerEditorViewModel : ObservableObject
 
     [ObservableProperty] private JumpHostOption? _selectedJumpHost;
     [ObservableProperty] private ThemeOption? _selectedTheme;
+
+    public IReadOnlyList<ShellExitOption> ShellExitOptions { get; }
+    [ObservableProperty] private ShellExitOption? _selectedShellExit;
+
+    partial void OnSelectedShellExitChanged(ShellExitOption? oldValue, ShellExitOption? newValue)
+    {
+        if (newValue == null && oldValue != null)
+            SelectedShellExit = oldValue;
+    }
 
     // Pickers can push a transient null back through their binding while items load;
     // never let that clear the real choice.
@@ -228,6 +240,7 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         Tunnels = Tunnels.Select(t => t.ToDefinition()).ToList(),
         JumpHostId = SelectedJumpHost?.Id,
         ThemeName = SelectedTheme?.Name,
+        OnShellExit = SelectedShellExit?.Value,
         Notes = Notes,
     };
 

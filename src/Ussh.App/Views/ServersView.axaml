@@ -155,6 +155,13 @@
           <CheckBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" IsChecked="{Binding AutoReconnect}"
                     Content="Reconnect automatically if the connection drops" />
         </Grid>
+        <Grid ColumnDefinitions="160,*" Margin="0,8,0,0">
+          <TextBlock Classes="label" Text="When the shell exits" />
+          <ComboBox Grid.Column="1" ItemsSource="{Binding ShellExitOptions}" SelectedItem="{Binding SelectedShellExit}"
+                    HorizontalAlignment="Stretch" />
+        </Grid>
+        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                   Text="Applies when you type exit (or log out). Dropped connections and errors always keep the pane open." />
 
         <TextBlock Classes="h2" Text="Terminal" />
         <Grid ColumnDefinitions="160,*" Margin="0,0,0,8">
@@ -217,7 +224,10 @@
         </Grid>
 
         <TextBlock Classes="h2" Text="Terminal" />
-        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+          <TextBlock Classes="label" Grid.Row="3" Text="When the shell exits" />
+          <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding SettingsShellExitOptions}" SelectedItem="{Binding DefaultShellExit}"
+                    HorizontalAlignment="Stretch" ToolTip.Tip="Default for servers that don't set their own. Only for exit/logout, never for dropped connections." />
           <TextBlock Classes="label" Grid.Row="2" Text="Default theme" />
           <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding SettingsThemeOptions}" SelectedItem="{Binding DefaultTheme}"
                     ItemTemplate="{StaticResource ThemeOptionTemplate}" HorizontalAlignment="Stretch" MaxDropDownHeight="480" />

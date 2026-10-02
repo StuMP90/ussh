@@ -135,6 +135,7 @@ public sealed class SshSessionTests : IDisposable
         server.Stop();
         await WaitForState(session, SessionState.Reconnecting);
         _output.WriteLine("Dropped: " + session.StatusMessage);
+        Assert.False(session.EndedByShellExit); // a drop is not an exit
         server.Start();
 
         await WaitForState(session, SessionState.Connected, TimeSpan.FromSeconds(30));
@@ -153,6 +154,7 @@ public sealed class SshSessionTests : IDisposable
 
         await WaitForState(session, SessionState.Disconnected);
         Assert.Contains("exited", session.StatusMessage);
+        Assert.True(session.EndedByShellExit);
         await Task.Delay(2500);
         Assert.Equal(SessionState.Disconnected, session.State);
     }
@@ -166,6 +168,7 @@ public sealed class SshSessionTests : IDisposable
 
         session.Disconnect();
         await WaitForState(session, SessionState.Disconnected);
+        Assert.False(session.EndedByShellExit); // a manual disconnect is not an exit
         await Task.Delay(1500);
         Assert.Equal(SessionState.Disconnected, session.State); // must not auto-reconnect
 
