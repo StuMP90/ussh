@@ -14,7 +14,15 @@ public sealed partial class ServerItemViewModel : ObservableObject
 
     public ServerProfile Profile { get; private set; }
     public string Name => Profile.DisplayName;
-    public string Address => $"{Profile.Username}@{Profile.Host}" + (Profile.Port == 22 ? "" : $":{Profile.Port}");
+    public string Address => Profile.Kind == ServerKind.S3
+        ? (Profile.S3Bucket.Length == 0 ? "s3:// all buckets" : $"s3://{Profile.S3Bucket}") + (Profile.S3Prefix.Length > 0 ? "/" + Profile.S3Prefix : "")
+        : $"{Profile.Username}@{Profile.Host}" + (Profile.Port == 22 ? "" : $":{Profile.Port}");
+    public string? KindBadge => Profile.Kind switch
+    {
+        ServerKind.SftpOnly => "SFTP",
+        ServerKind.S3 => "S3",
+        _ => null,
+    };
     public string Group => Profile.Group;
     public bool HasGroup => !string.IsNullOrWhiteSpace(Profile.Group);
     public int TunnelCount => Profile.Tunnels.Count(t => t.Enabled);
@@ -56,7 +64,8 @@ public sealed partial class ServersTabViewModel : TabViewModel
     [ObservableProperty] private string _filter = "";
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ConnectCommand), nameof(DuplicateServerCommand), nameof(DeleteServerCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ConnectCommand), nameof(BrowseFilesCommand), nameof(DuplicateServerCommand), nameof(DeleteServerCommand))]
+    [NotifyPropertyChangedFor(nameof(ConnectLabel))]
     private ServerItemViewModel? _selectedServer;
 
     [ObservableProperty]
@@ -297,7 +306,34 @@ public sealed partial class ServersTabViewModel : TabViewModel
                 return;
         }
         // Profiles are re-read after a possible save (SaveServer replaces the saved object).
-        _main.ConnectTogether(targets.Select(t => t.Profile).ToList());
+        var profiles = targets.Select(t => t.Profile).ToList();
+        if (profiles.Count == 1 && !profiles[0].HasTerminal)
+        {
+            _main.OpenFiles(profiles[0]); // SFTP-only and S3 servers open as files
+            return;
+        }
+        if (profiles.Any(p => !p.HasTerminal))
+        {
+            await _dialogs.AlertAsync("Connect", "Side-by-side terminals are for SSH servers only. Open SFTP and S3 servers one at a time with Browse files.");
+            return;
+        }
+        _main.ConnectTogether(profiles);
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private async Task BrowseFilesAsync()
+    {
+        if (SelectedServer == null)
+            return;
+        if (Editor is { IsDirty: true } editor && editor.Id == SelectedServer.Profile.Id)
+        {
+            if (!await _dialogs.ConfirmAsync("Unsaved changes", "Save changes to this server first?", "Save and continue"))
+                return;
+            SaveServer();
+            if (editor.ValidationError != null)
+                return;
+        }
+        _main.OpenFiles(SelectedServer.Profile);
     }
 
     /// <summary>All selected servers (Ctrl/Shift+click). Several open side by side in one tab.</summary>
@@ -314,7 +350,9 @@ public sealed partial class ServersTabViewModel : TabViewModel
 
     private IReadOnlyList<ServerItemViewModel> _selectedServers = Array.Empty<ServerItemViewModel>();
 
-    public string ConnectLabel => SelectedServers.Count > 1 ? $"Connect {SelectedServers.Count} side by side" : "Connect";
+    public string ConnectLabel => SelectedServers.Count > 1 ? $"Connect {SelectedServers.Count} side by side"
+        : SelectedServer?.Profile.HasTerminal == false ? "Open files"
+        : "Connect";
 
     private bool HasSelection() => SelectedServer != null;
 

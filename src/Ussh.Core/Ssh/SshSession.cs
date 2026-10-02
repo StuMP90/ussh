@@ -28,7 +28,7 @@ public sealed class SshSession : IAsyncDisposable
     private readonly IPassphraseProvider? _passphrases;
     // "Ask every time" passphrases this session has used, so its own reconnects never prompt.
     // Memory only; gone when the session closes.
-    private readonly Dictionary<Guid, string> _rememberedPassphrases = new();
+    private readonly PassphraseMemory _rememberedPassphrases = new();
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _wake = new(0, 1);
     private readonly object _gate = new();
@@ -610,89 +610,12 @@ public sealed class SshSession : IAsyncDisposable
             _abort.Dispose();
         }
 
-        /// <summary>
-        /// Auth for <paramref name="server"/>. For "ask every time" keys, gets the passphrase
-        /// (remembered by this session, else from the provider, which may prompt) and checks it by
-        /// loading the key locally, re-asking on a wrong answer, before anything goes to the server.
-        /// </summary>
-        private async Task<AuthenticationMethod[]> BuildAuthAsync(ServerProfile server, CancellationToken token)
-        {
-            if (server.AuthMethod != AuthMethod.PrivateKey || !server.AskForPassphrase)
-                return BuildAuthMethods(server, server.PrivateKeyPassphrase);
-
-            string? retryReason = null;
-            for (var attempt = 0; attempt < 3; attempt++)
-            {
-                string? passphrase;
-                lock (_owner._rememberedPassphrases)
-                    _owner._rememberedPassphrases.TryGetValue(server.Id, out passphrase);
-                if (passphrase == null || retryReason != null)
-                {
-                    if (_owner._passphrases == null)
-                        throw new SessionConfigurationException($"No way to ask for the key passphrase for {server.DisplayName}.");
-                    _owner.SetState(_owner.State is SessionState.Reconnecting ? SessionState.Reconnecting : SessionState.Connecting,
-                        $"Waiting for the key passphrase for {server.DisplayName}…");
-                    passphrase = await _owner._passphrases.GetPassphraseAsync(server, retryReason, token).ConfigureAwait(false);
-                    token.ThrowIfCancellationRequested();
-                    if (passphrase == null)
-                        throw new SessionConfigurationException($"Key passphrase for {server.DisplayName} was not entered. Reconnect to try again.");
-                }
-                try
-                {
-                    var auth = BuildAuthMethods(server, passphrase);
-                    lock (_owner._rememberedPassphrases)
-                        _owner._rememberedPassphrases[server.Id] = passphrase;
-                    return auth;
-                }
-                catch (SessionConfigurationException)
-                {
-                    // The key was checked to be a valid encrypted key when saved, so failing to
-                    // open it now means the passphrase is wrong.
-                    lock (_owner._rememberedPassphrases)
-                        _owner._rememberedPassphrases.Remove(server.Id);
-                    retryReason = "That passphrase didn't unlock the key. Try again.";
-                }
-            }
-            throw new SessionConfigurationException($"Wrong key passphrase for {server.DisplayName}. Reconnect to try again.");
-        }
-
-        private static AuthenticationMethod[] BuildAuthMethods(ServerProfile server, string? passphrase)
-        {
-            var user = server.Username;
-            if (string.IsNullOrWhiteSpace(user))
-                throw new SessionConfigurationException("No username configured.");
-
-            switch (server.AuthMethod)
-            {
-                case AuthMethod.PrivateKey:
-                    if (string.IsNullOrWhiteSpace(server.PrivateKey))
-                        throw new SessionConfigurationException("No private key configured.");
-                    try
-                    {
-                        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(server.PrivateKey.Trim() + "\n"));
-                        var key = string.IsNullOrEmpty(passphrase)
-                            ? new PrivateKeyFile(stream)
-                            : new PrivateKeyFile(stream, passphrase);
-                        return new AuthenticationMethod[] { new PrivateKeyAuthenticationMethod(user, key) };
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new SessionConfigurationException("Could not load private key: " + ex.Message, ex);
-                    }
-
-                default:
-                    var password = server.Password ?? "";
-                    // Many servers only offer keyboard-interactive; answer its password prompt too.
-                    var interactive = new KeyboardInteractiveAuthenticationMethod(user);
-                    interactive.AuthenticationPrompt += (_, e) =>
-                    {
-                        foreach (var prompt in e.Prompts)
-                            if (prompt.Request.Contains("password", StringComparison.OrdinalIgnoreCase))
-                                prompt.Response = password;
-                    };
-                    return new AuthenticationMethod[] { new PasswordAuthenticationMethod(user, password), interactive };
-            }
-        }
+        private Task<AuthenticationMethod[]> BuildAuthAsync(ServerProfile server, CancellationToken token) =>
+            SshAuth.BuildAsync(server, _owner._rememberedPassphrases, _owner._passphrases,
+                waitingFor => _owner.SetState(
+                    _owner.State is SessionState.Reconnecting ? SessionState.Reconnecting : SessionState.Connecting,
+                    $"Waiting for the key passphrase for {waitingFor.DisplayName}…"),
+                token);
 
         private void OnHostKeyReceived(ServerProfile server, HostKeyEventArgs e)
         {

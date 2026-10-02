@@ -17,6 +17,9 @@
     <DataTemplate DataType="vm:TerminalTabViewModel">
       <views:TerminalView />
     </DataTemplate>
+    <DataTemplate DataType="vm:FilesTabViewModel">
+      <views:FilesView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <Window.Styles>
@@ -32,6 +35,9 @@
         <DockPanel>
           <Button DockPanel.Dock="Right" Content="Lock" Command="{Binding LockCommand}"
                   ToolTip.Tip="Lock uSSH (Ctrl+Shift+L). Sessions keep running." />
+          <Button DockPanel.Dock="Right" Content="{Binding TransfersLabel}" Command="{Binding ShowTransfersCommand}"
+                  IsVisible="{Binding ActiveTransfers}" Margin="0,0,12,0"
+                  ToolTip.Tip="Files are being transferred. Click to go to them." />
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="0,0,12,0"
                       IsVisible="{Binding CanCombine}">
             <Button Classes="accent" Content="{Binding CombineLabel}" Command="{Binding CombineMarkedCommand}"
@@ -79,6 +85,9 @@
                   Content="{Binding UnlockButtonText}" Command="{Binding UnlockCommand}" IsDefault="True" />
           <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" />
           <TextBlock Classes="muted" Text="{Binding LiveSessionNote}" IsVisible="{Binding LiveSessionNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <Button Content="Forgot the admin password?" Command="{Binding ForgotPasswordCommand}"
+                  IsVisible="{Binding !IsSetupRequired}" Background="Transparent" Padding="0" FontSize="12"
+                  Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" HorizontalAlignment="Left" />
           <TextBlock Classes="muted" FontSize="11" Text="{Binding AppVersion}" HorizontalAlignment="Right" />
         </StackPanel>
       </Border>

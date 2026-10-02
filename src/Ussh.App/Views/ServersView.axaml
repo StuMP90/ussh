@@ -34,6 +34,9 @@
     <DockPanel Grid.Column="0" Margin="12">
       <TextBox DockPanel.Dock="Top" Watermark="Search servers" Text="{Binding Filter}" Margin="0,0,0,8" />
       <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,8,0,0">
+        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                Content="Browse files" Command="{Binding BrowseFilesCommand}"
+                ToolTip.Tip="Open the dual-pane file browser for this server" />
         <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                 Content="{Binding ConnectLabel}" Command="{Binding ConnectCommand}"
                 ToolTip.Tip="Ctrl+click several servers to open them side by side in one tab" />
@@ -56,7 +59,12 @@
                 <TextBlock DockPanel.Dock="Right" Text="{Binding Group}" IsVisible="{Binding HasGroup}" FontSize="11" Classes="muted" VerticalAlignment="Center" />
                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
               </DockPanel>
-              <TextBlock Text="{Binding Address}" FontSize="12" Classes="muted" TextTrimming="CharacterEllipsis" />
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Border Background="#304A90E2" CornerRadius="3" Padding="4,0" IsVisible="{Binding KindBadge, Converter={x:Static ObjectConverters.IsNotNull}}">
+                  <TextBlock Text="{Binding KindBadge}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="{Binding Address}" FontSize="12" Classes="muted" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
               <TextBlock Text="{Binding Via}" FontSize="11" Classes="muted" IsVisible="{Binding HasVia}" TextTrimming="CharacterEllipsis" />
               <TextBlock Text="{Binding TunnelBadge}" FontSize="11" Classes="muted" IsVisible="{Binding TunnelBadge, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
@@ -87,21 +95,49 @@
         <TextBlock Classes="error" Text="{Binding ValidationError}" IsVisible="{Binding ValidationError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
         <TextBlock Classes="h2" Text="Connection" />
-        <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+        <Grid ColumnDefinitions="160,*" Margin="0,0,0,8">
+          <TextBlock Classes="label" Text="Type" />
+          <ComboBox Grid.Column="1" ItemsSource="{Binding KindOptions}" SelectedItem="{Binding SelectedKind}" HorizontalAlignment="Stretch" />
+        </Grid>
+        <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" RowSpacing="8">
           <TextBlock Classes="label" Grid.Row="0" Text="Name" />
           <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Name}" Watermark="e.g. Production web 1" />
           <TextBlock Classes="label" Grid.Row="1" Text="Group" />
           <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Group}" Watermark="Optional, e.g. Production" />
-          <TextBlock Classes="label" Grid.Row="2" Text="Host" />
-          <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,150" ColumnSpacing="8">
+        </Grid>
+
+        <!-- Amazon S3 -->
+        <StackPanel Spacing="8" Margin="0,8,0,0" IsVisible="{Binding ShowS3Fields}">
+          <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+            <TextBlock Classes="label" Grid.Row="0" Text="Bucket" />
+            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding S3Bucket}" Watermark="Leave empty to browse all buckets the keys can see" />
+            <TextBlock Classes="label" Grid.Row="1" Text="Region" />
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding S3Region}" Watermark="e.g. eu-west-2 (buckets in other regions are found automatically)" />
+            <TextBlock Classes="label" Grid.Row="2" Text="Start in folder" />
+            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding S3Prefix}" Watermark="Optional, e.g. backups/2026 (with no bucket set: my-bucket/backups)" />
+            <TextBlock Classes="label" Grid.Row="3" Text="Access key ID" />
+            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding S3AccessKeyId}" Watermark="AKIA…" />
+            <TextBlock Classes="label" Grid.Row="4" Text="Secret access key" />
+            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding S3SecretAccessKey}" PasswordChar="●" Watermark="Stored encrypted in the vault" />
+            <TextBlock Classes="label" Grid.Row="5" Text="Custom endpoint" />
+            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding S3ServiceUrl}" Watermark="Leave empty for AWS. For S3-compatible storage, e.g. https://s3.example.com" />
+          </Grid>
+          <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                     Text="Use an IAM user with only the access it needs (e.g. s3:ListBucket, s3:GetObject, s3:PutObject, s3:DeleteObject). Browsing all buckets also needs s3:ListAllMyBuckets. uSSH never creates or deletes buckets." />
+        </StackPanel>
+
+        <StackPanel Spacing="6" IsVisible="{Binding ShowSshFields}" Margin="0,8,0,0">
+        <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+          <TextBlock Classes="label" Grid.Row="0" Text="Host" />
+          <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto,150" ColumnSpacing="8">
             <TextBox Text="{Binding Host}" Watermark="hostname or IP address" />
             <TextBlock Grid.Column="1" Classes="label" Text="Port" Margin="0" />
             <NumericUpDown Grid.Column="2" Value="{Binding Port}" Minimum="1" Maximum="65535" Increment="1" FormatString="0" />
           </Grid>
-          <TextBlock Classes="label" Grid.Row="3" Text="Username" />
-          <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Username}" />
-          <TextBlock Classes="label" Grid.Row="4" Text="Authentication" />
-          <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding AuthMethods}" SelectedIndex="{Binding AuthMethodIndex}" MinWidth="200" />
+          <TextBlock Classes="label" Grid.Row="1" Text="Username" />
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Username}" />
+          <TextBlock Classes="label" Grid.Row="2" Text="Authentication" />
+          <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding AuthMethods}" SelectedIndex="{Binding AuthMethodIndex}" MinWidth="200" />
         </Grid>
 
         <Grid ColumnDefinitions="160,*" IsVisible="{Binding IsPasswordAuth}" Margin="0,8,0,0">
@@ -144,16 +180,21 @@
         </DockPanel>
 
         <TextBlock Classes="h2" Text="Stability" />
-        <Grid ColumnDefinitions="160,140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Grid ColumnDefinitions="160,140,*" RowDefinitions="Auto,Auto" RowSpacing="8">
           <TextBlock Classes="label" Text="Keepalive (seconds)" />
           <NumericUpDown Grid.Column="1" Value="{Binding KeepAliveSeconds}" Minimum="0" Maximum="600" Increment="5" FormatString="0" />
           <TextBlock Grid.Column="2" Classes="muted" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
                      Text="Keeps idle sessions alive through NAT and firewalls. 0 disables (not recommended)." />
           <TextBlock Classes="label" Grid.Row="1" Text="Connect timeout (s)" />
           <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding ConnectTimeoutSeconds}" Minimum="3" Maximum="120" Increment="1" FormatString="0" />
-          <TextBlock Classes="label" Grid.Row="2" Text="Auto-reconnect" />
-          <CheckBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" IsChecked="{Binding AutoReconnect}"
-                    Content="Reconnect automatically if the connection drops" />
+        </Grid>
+        </StackPanel>
+
+        <!-- SSH servers only: terminal behaviour -->
+        <StackPanel Spacing="6" IsVisible="{Binding ShowTerminalFields}">
+        <Grid ColumnDefinitions="160,*" Margin="0,8,0,0">
+          <TextBlock Classes="label" Text="Auto-reconnect" />
+          <CheckBox Grid.Column="1" IsChecked="{Binding AutoReconnect}" Content="Reconnect automatically if the connection drops" />
         </Grid>
         <Grid ColumnDefinitions="160,*" Margin="0,8,0,0">
           <TextBlock Classes="label" Text="When the shell exits" />
@@ -203,6 +244,7 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        </StackPanel>
 
         <TextBlock Classes="h2" Text="Notes" />
         <TextBox Text="{Binding Notes}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" />

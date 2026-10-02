@@ -8,6 +8,23 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
 
 - **Tabbed SSH terminals**: xterm-256color, truecolor, mouse support (vim, htop, mc), bracketed
   paste, scrollback, selection and copy/paste, CJK and emoji widths.
+- **Three kinds of server**: *SSH server* (terminal and files), *SFTP only* (files), and
+  *Amazon S3 or S3-compatible storage* (files, using access keys; works with MinIO, Backblaze
+  B2, Cloudflare R2 etc. via a custom endpoint). For S3 the bucket is optional: leave it empty
+  to browse every bucket the keys can list (needs `s3:ListAllMyBuckets`). Buckets in different
+  regions are found automatically. uSSH never creates, renames or deletes buckets: the bucket
+  list is read-only, and only what's inside a bucket can be changed.
+- **Dual-pane file browser** (FileZilla style), in its own tab: this computer on the left, the
+  server or bucket on the right. Transfer with the arrow buttons, double-click / Enter, dragging
+  between panes, or dropping files from your file manager onto the remote side. Whole folders
+  copy recursively; existing files prompt *Overwrite / Keep both / Skip* (optionally for the
+  rest of the transfer). New folder, rename, delete (with a file count before confirming), and
+  permissions on SFTP.
+- **Transfer queue** under the panes: progress, speed, time left, cancel and retry per file,
+  and a header indicator while transfers run in any tab. Dropped connections are retried
+  automatically and **resume where they stopped** (SFTP offsets, S3 multipart uploads and
+  ranged downloads) rather than starting again. Browsing and transfers use separate
+  connections, so a big transfer never stalls browsing or any terminal.
 - **Server management**: add, edit, duplicate, delete, group and search servers. Password or
   private-key authentication: OpenSSH, PEM and PuTTY `.ppk` (v2 and v3) keys, with an
   optional passphrase.
@@ -66,7 +83,11 @@ shell; to keep running programs across reconnects, use `tmux` or `screen` on the
   iterations. The KDF parameters are authenticated, so tampering with them is detected.
 - Writes are atomic, and the previous version is kept as `vault.json.bak`. On Linux the files
   are mode `0600`.
-- There is no recovery: if the admin password is lost, the vault cannot be decrypted.
+- There is no recovery: if the admin password is lost, the vault cannot be decrypted. The unlock
+  screen's **Forgot the admin password?** starts again with an empty vault (after a warning and
+  typing RESET). The old vault isn't deleted: it's renamed to `vault.forgotten-<date>.json` in
+  the same folder, still encrypted, and can be restored by renaming it back if the password
+  turns up.
 - While unlocked, decrypted settings are held in memory. Locking drops them. Each open
   session keeps its own copy of its server's credentials so that it can reconnect while
   locked.
@@ -76,6 +97,9 @@ shell; to keep running programs across reconnects, use `tmux` or `screen` on the
   cache lets new panes and tabs for that server reuse it until uSSH is locked or closed.
   Nothing prompts while locked.
 - Logs (`logs/` next to the vault) never contain secrets.
+- S3 access key IDs and secrets are stored in the vault like passwords. Give uSSH an IAM user
+  with only the access it needs on the bucket. File connections (SFTP and S3) use the same
+  host-key checks, jump hosts and passphrase handling as terminals.
 - uSSH always starts with no sessions open: open tabs, panes and their layout are not saved
   between runs, and won't be. Restoring them would mean reconnecting automatically at startup
   and keeping a record of what you were connected to; every run instead starts at the server
@@ -124,10 +148,17 @@ dotnet test
   restart → auto-reconnect, `exit`, disconnect/reconnect, resize, local/remote tunnels,
   failed tunnels, a 200k-line output flood, one- and two-hop jump hosts including a
   bastion restart and a bastion auth failure, tunnels through a jump host).
+- SFTP and S3: browsing, folder operations, folder-tree transfers both ways (checked byte for
+  byte), conflict choices, cancel/retry, permission errors, and **resume after a dropped
+  connection** (the SFTP server is killed mid-transfer; S3 multipart uploads reuse their
+  finished parts). S3 tests run against `moto`, a local S3 emulator, so no AWS account is
+  needed: `pip install 'moto[server]'`, or point `USSH_MOTO_SERVER` at a `moto_server`. They
+  pass as no-ops without it.
 - `Ussh.App.Tests`: drives the real UI headlessly: first-run password, server management,
   lock/unlock persistence, validation, a live terminal tab, tab focus and shortcuts, a
   bastion configured in the editor, per-server themes (checked by pixel colour), split panes
-  (shortcuts, Alt+Arrow navigation, broadcast, close) and multi-select side-by-side connect. Set
+  (shortcuts, Alt+Arrow navigation, broadcast, close), multi-select side-by-side connect, and the
+  file browser for SFTP-only servers and S3 buckets. Set
   `USSH_SCREENSHOT_DIR` to keep the screenshots.
 
 ### Soak test
@@ -219,7 +250,10 @@ The tarball is self-contained and includes an `install.sh` (installs to `~/.loca
 
 ## Known limitations and roadmap
 
-- Not yet: SFTP browser.
+- File browser: S3 renames are copy-then-delete (S3 has no rename), so renaming a large folder
+  is slow, and single objects over 5 GB can't be renamed in place. Files are transferred
+  between this computer and the server, not directly between two servers. Dragging files out
+  to the system file manager isn't supported (use download).
 - Line reflow on resize is disabled (the upstream reflow code is unreliable); long lines are
   truncated when the window narrows, like xterm.
 - Rendering redraws the whole visible screen when anything changes. That's fine for normal

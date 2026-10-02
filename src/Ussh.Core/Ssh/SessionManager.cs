@@ -40,6 +40,12 @@ public sealed class SessionManager : IAsyncDisposable
     /// </summary>
     public event Action<SshSession, Guid, string>? HostKeyTrusted;
 
+    /// <summary>
+    /// A connector for file (SFTP) connections that shares this manager's host-key checks and
+    /// passphrase prompts, so files and terminals behave the same.
+    /// </summary>
+    public SshConnector CreateConnector() => new(_hostKeyVerifier, _passphrases);
+
     /// <param name="jumpHosts">From <see cref="JumpHostResolver.Resolve"/>, outermost first.</param>
     public SshSession Open(ServerProfile profile, IReadOnlyList<ServerProfile>? jumpHosts = null)
     {

@@ -84,6 +84,31 @@ public sealed class VaultTests : IDisposable
     }
 
     [Fact]
+    public void ForgottenVaultIsSetAsideNotDeleted()
+    {
+        var vault = new Vault(VaultPath);
+        var data = vault.Create("forgotten pass", TestIterations);
+        data.Servers.Add(new ServerProfile { Host = "old.example", Password = "old-secret" });
+        vault.Save(data);
+        vault.Save(data); // also produces vault.json.bak
+        vault.Lock();
+
+        var aside = new Vault(VaultPath).SetAsideForgotten();
+
+        Assert.False(File.Exists(VaultPath));
+        Assert.False(File.Exists(VaultPath + ".bak"));
+        Assert.True(File.Exists(aside));
+        Assert.True(File.Exists(aside + ".bak"));
+        Assert.Matches(@"vault\.forgotten-\d{8}-\d{6}(-\d+)?\.json$", aside);
+
+        // A fresh vault can be created with a new password…
+        var fresh = new Vault(VaultPath).Create("a new password", TestIterations);
+        Assert.Empty(fresh.Servers);
+        // …and the old one is intact: it opens with the old password if it's remembered.
+        Assert.Equal("old-secret", Assert.Single(new Vault(aside).Unlock("forgotten pass").Servers).Password);
+    }
+
+    [Fact]
     public void ShortPasswordsAreRejected()
     {
         Assert.Throws<VaultException>(() => new Vault(VaultPath).Create("short", TestIterations));

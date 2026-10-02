@@ -73,3 +73,16 @@ public sealed record ShellExitOption(ShellExitAction? Value, string Label)
 
     public override string ToString() => Label;
 }
+
+/// <summary>An entry in the server "Type" picker.</summary>
+public sealed record ServerKindOption(ServerKind Kind, string Label)
+{
+    public static IReadOnlyList<ServerKindOption> All { get; } = new[]
+    {
+        new ServerKindOption(ServerKind.Ssh, "SSH server (terminal and files)"),
+        new ServerKindOption(ServerKind.SftpOnly, "SFTP only (files)"),
+        new ServerKindOption(ServerKind.S3, "Amazon S3 or S3-compatible bucket (files)"),
+    };
+
+    public override string ToString() => Label;
+}

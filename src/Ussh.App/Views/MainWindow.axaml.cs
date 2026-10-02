@@ -229,12 +229,17 @@ public partial class MainWindow : Window
     {
         base.OnClosing(e);
         var vm = ViewModel;
-        if (_closeConfirmed || vm == null || vm.ConnectedSessionCount == 0)
+        if (_closeConfirmed || vm == null || (vm.ConnectedSessionCount == 0 && vm.ActiveTransfers == 0))
             return;
 
         e.Cancel = true;
         var dialogs = new Services.DialogService(this);
-        if (await dialogs.ConfirmAsync("Quit uSSH", $"{vm.ConnectedSessionCount} session(s) are connected. Disconnect them and quit?", "Quit", danger: true))
+        var running = new List<string>();
+        if (vm.ConnectedSessionCount > 0)
+            running.Add($"{vm.ConnectedSessionCount} session(s) are connected");
+        if (vm.ActiveTransfers > 0)
+            running.Add($"{vm.ActiveTransfers} file transfer(s) are still running");
+        if (await dialogs.ConfirmAsync("Quit uSSH", string.Join(" and ", running) + ". Stop them and quit?", "Quit", danger: true))
         {
             _closeConfirmed = true;
             Close();

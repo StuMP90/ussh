@@ -11,6 +11,7 @@ using Ussh.App.Controls;
 using Ussh.App.Services;
 using Ussh.App.ViewModels;
 using Ussh.App.Views;
+using Ussh.Core.Files;
 using Ussh.Core.Models;
 using Ussh.Core.Security;
 using Ussh.Core.Ssh;
@@ -631,6 +632,222 @@ public sealed class UiTests : IDisposable
 
         dropped.FocusedPane.Session.Disconnect();
         await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task SftpOnlyServerOpensDualPaneBrowserAndTransfers()
+    {
+        var server = SshTestServer.TryStart(sftp: true);
+        if (server == null)
+            return; // python3/paramiko not available
+        _dispose.Add(server);
+        var local = Path.Combine(_dir, "local");
+        Directory.CreateDirectory(Path.Combine(local, "site", "css"));
+        File.WriteAllText(Path.Combine(local, "site", "index.html"), "<h1>hi</h1>");
+        File.WriteAllText(Path.Combine(local, "site", "css", "main.css"), "body{}");
+        File.WriteAllBytes(Path.Combine(local, "backup.tar"), new byte[3_000_000]);
+        Directory.CreateDirectory(Path.Combine(server.SftpRoot!, "var", "www"));
+        File.WriteAllText(Path.Combine(server.SftpRoot!, "var", "www", "remote.txt"), "from the server");
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        vm.Servers.AddServerCommand.Execute(null);
+        var editor = vm.Servers.Editor!;
+        editor.SelectedKind = editor.KindOptions.Single(k => k.Kind == ServerKind.SftpOnly);
+        Assert.False(editor.ShowTerminalFields);
+        Assert.True(editor.ShowSshFields);
+        (editor.Name, editor.Host, editor.Port, editor.Username, editor.Password) =
+            ("files.example", "127.0.0.1", server.Port, Environment.UserName, SshTestServer.Password);
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Null(editor.ValidationError);
+        var item = vm.Servers.FilteredServers.Single();
+        Assert.Equal("SFTP", item.KindBadge);
+        vm.Servers.SelectedServer = item;
+        Assert.Equal("Open files", vm.Servers.ConnectLabel);
+
+        // Connect on an SFTP-only server opens the file browser.
+        await vm.Servers.ConnectCommand.ExecuteAsync(null);
+        var tab = Assert.IsType<FilesTabViewModel>(vm.SelectedTab);
+        await WaitUntil(() => tab.Remote.CurrentPath == "/" && tab.Local.CurrentPath.Length > 0, "both panes listed");
+        await tab.Local.NavigateAsync(local);
+        await tab.Remote.NavigateAsync("/var/www");
+        await Pump(200);
+        Assert.Equal(new[] { "site", "backup.tar" }, tab.Local.Rows.Select(r => r.Name));
+        Assert.Equal("remote.txt", Assert.Single(tab.Remote.Rows).Name);
+        Assert.Null(tab.Remote.Error);
+
+        // Upload a folder and a file from the left pane into /var/www.
+        tab.Local.Selected = tab.Local.Rows.ToList();
+        await tab.UploadCommand.ExecuteAsync(null);
+        await WaitUntil(() => tab.Transfers.Count == 3, "three files queued");
+        Assert.True(vm.ActiveTransfers >= 0);
+        await WaitUntil(() => tab.Queue.ActiveCount == 0, "uploads to finish");
+        await Pump(800); // let the progress panel and listings refresh
+        Assert.All(tab.Transfers, t => Assert.Equal("Done", t.StatusText));
+        Assert.Equal("body{}", File.ReadAllText(Path.Combine(server.SftpRoot!, "var", "www", "site", "css", "main.css")));
+        Assert.Equal(3_000_000, new FileInfo(Path.Combine(server.SftpRoot!, "var", "www", "backup.tar")).Length);
+        await WaitUntil(() => tab.Remote.Rows.Count == 3, "remote listing refreshed");
+        Assert.Equal(0, vm.ActiveTransfers);
+        Save(window, "17-files-sftp");
+
+        // Download the server's file to the left pane.
+        tab.Remote.Selected = tab.Remote.Rows.Where(r => r.Name == "remote.txt").ToList();
+        await tab.DownloadCommand.ExecuteAsync(null);
+        await WaitUntil(() => tab.Queue.ActiveCount == 0 && File.Exists(Path.Combine(local, "remote.txt")), "download");
+        Assert.Equal("from the server", File.ReadAllText(Path.Combine(local, "remote.txt")));
+
+        await vm.CloseFilesTabAsync(tab);
+        Assert.DoesNotContain(tab, vm.Tabs);
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task S3BucketOpensInFileBrowserAndUploads()
+    {
+        var s3 = S3TestServer.TryStart();
+        if (s3 == null)
+            return; // moto_server not available
+        _dispose.Add(s3);
+        var bucket = s3.CreateBucket("ui-bucket");
+        var local = Path.Combine(_dir, "to-upload");
+        Directory.CreateDirectory(local);
+        File.WriteAllText(Path.Combine(local, "notes.txt"), "uploaded from uSSH");
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        vm.Servers.AddServerCommand.Execute(null);
+        var editor = vm.Servers.Editor!;
+        editor.SelectedKind = editor.KindOptions.Single(k => k.Kind == ServerKind.S3);
+        (editor.Name, editor.S3Bucket, editor.S3Region, editor.S3AccessKeyId, editor.S3SecretAccessKey, editor.S3ServiceUrl) =
+            ("Backups bucket", "ui-bucket", "us-east-1", bucket.S3AccessKeyId!, bucket.S3SecretAccessKey!, s3.Url);
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Null(editor.ValidationError);
+        vm.Servers.SelectedServer = vm.Servers.FilteredServers.Single();
+
+        await vm.Servers.ConnectCommand.ExecuteAsync(null);
+        var tab = Assert.IsType<FilesTabViewModel>(vm.SelectedTab);
+        await WaitUntil(() => tab.Remote.CurrentPath == "/" && tab.Local.CurrentPath.Length > 0, "bucket listed");
+        Assert.False(tab.Remote.SupportsPermissions);
+        await tab.Local.NavigateAsync(local);
+        await Pump(100);
+
+        tab.Local.Selected = tab.Local.Rows.ToList();
+        await tab.UploadCommand.ExecuteAsync(null);
+        await WaitUntil(() => tab.Transfers.Count == 1 && tab.Queue.ActiveCount == 0, "upload");
+        await WaitUntil(() => tab.Remote.Rows.Any(r => r.Name == "notes.txt"), "bucket listing refreshed");
+        Assert.Equal("Done", tab.Transfers.Single().StatusText);
+        Assert.Equal("STANDARD", tab.Remote.Rows.Single().Owner); // storage class in the last column
+        await Pump(300);
+        Save(window, "19-files-s3");
+
+        await vm.CloseFilesTabAsync(tab);
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task S3WithoutBucketBrowsesAllBuckets()
+    {
+        var s3 = S3TestServer.TryStart();
+        if (s3 == null)
+            return; // moto_server not available
+        _dispose.Add(s3);
+        var first = s3.CreateBucket("company-backups");
+        s3.CreateBucket("company-logs");
+        s3.CreateBucket("website-assets");
+
+        var (window, vm, sessions) = Create();
+        await CreateVault(vm);
+        vm.Servers.AddServerCommand.Execute(null);
+        var editor = vm.Servers.Editor!;
+        editor.SelectedKind = editor.KindOptions.Single(k => k.Kind == ServerKind.S3);
+        (editor.Name, editor.S3AccessKeyId, editor.S3SecretAccessKey, editor.S3ServiceUrl) =
+            ("AWS account", first.S3AccessKeyId!, first.S3SecretAccessKey!, s3.Url);
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Null(editor.ValidationError);
+        var item = vm.Servers.FilteredServers.Single();
+        Assert.Equal("s3:// all buckets", item.Address);
+        vm.Servers.SelectedServer = item;
+
+        await vm.Servers.ConnectCommand.ExecuteAsync(null);
+        var tab = Assert.IsType<FilesTabViewModel>(vm.SelectedTab);
+        await WaitUntil(() => tab.Remote.Rows.Count == 3, "bucket list");
+        Assert.Equal(new[] { "company-backups", "company-logs", "website-assets" }, tab.Remote.Rows.Select(r => r.Name));
+        Assert.All(tab.Remote.Rows, r => Assert.True(r.Entry.IsDirectory));
+        Assert.NotNull(tab.Remote.FileSystem.ReadOnlyReason("/company-logs")); // buckets are read-only
+        await Pump(200);
+        Save(window, "20-s3-all-buckets");
+
+        await tab.Remote.OpenAsync(tab.Remote.Rows.First(r => r.Name == "company-logs"));
+        Assert.Equal("/company-logs", tab.Remote.CurrentPath);
+        Assert.Null(tab.Remote.Error);
+
+        await vm.CloseFilesTabAsync(tab);
+        await sessions.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task ForgottenPasswordStartsAgainAndKeepsTheOldVault()
+    {
+        var (window, vm, _) = Create();
+        await CreateVault(vm);
+        AddServer(vm, "will be set aside", "", "old.example", "root");
+        vm.Lock();
+        Assert.False(vm.IsSetupRequired);
+        await Pump(100);
+        Save(window, "21-unlock-forgot-link");
+
+        var aside = vm.ResetForgottenVault();
+
+        Assert.True(vm.IsSetupRequired && vm.IsLocked);
+        Assert.True(File.Exists(aside));
+        vm.Password = vm.ConfirmPassword = "brand new password";
+        await vm.UnlockCommand.ExecuteAsync(null);
+        Assert.False(vm.IsLocked);
+        Assert.Empty(vm.Data!.Servers);
+        Assert.Empty(vm.Servers.FilteredServers);
+    }
+
+    [Fact]
+    public void TransferSpeedsAreShownInBitsPerSecond()
+    {
+        Assert.Equal("800 kbps", TransferRowViewModel.FormatBitRate(100_000));
+        Assert.Equal("100 Mbps", TransferRowViewModel.FormatBitRate(12_500_000));
+        Assert.Equal("9.6 Mbps", TransferRowViewModel.FormatBitRate(1_200_000));
+        Assert.Equal("1.2 Gbps", TransferRowViewModel.FormatBitRate(150_000_000));
+        Assert.Equal("400 bps", TransferRowViewModel.FormatBitRate(50));
+    }
+
+    [AvaloniaFact]
+    public async Task ServerTypesShowTheRightFieldsAndValidate()
+    {
+        var (window, vm, _) = Create();
+        await CreateVault(vm);
+        vm.Servers.AddServerCommand.Execute(null);
+        var editor = vm.Servers.Editor!;
+        Assert.True(editor.ShowTerminalFields); // SSH by default
+
+        editor.SelectedKind = editor.KindOptions.Single(k => k.Kind == ServerKind.S3);
+        Assert.True(editor.ShowS3Fields);
+        Assert.False(editor.ShowSshFields);
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Contains("Access key", editor.ValidationError); // the bucket is optional (all buckets)
+        editor.S3Bucket = "my-bucket/backups";
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Contains("just the bucket name", editor.ValidationError);
+        (editor.S3Bucket, editor.S3Prefix, editor.S3Region) = ("my-bucket", "/backups/2026/", "eu-west-2");
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Contains("Access key", editor.ValidationError);
+        (editor.S3AccessKeyId, editor.S3SecretAccessKey) = ("AKIAEXAMPLE", "secret-example");
+        vm.Servers.SaveServerCommand.Execute(null);
+        Assert.Null(editor.ValidationError);
+        var saved = vm.Data!.Servers.Single();
+        Assert.Equal((ServerKind.S3, "backups/2026", "secret-example"), (saved.Kind, saved.S3Prefix, saved.S3SecretAccessKey));
+        Assert.Null(saved.Password);
+        var item = vm.Servers.FilteredServers.Single();
+        Assert.Equal(("S3", "s3://my-bucket/backups/2026"), (item.KindBadge, item.Address));
+        Assert.DoesNotContain("secret-example", File.ReadAllText(Path.Combine(_dir, "vault.json")));
+        await Pump(100);
+        Save(window, "18-s3-editor");
     }
 
     private static void AssertTerminalBackground(Window window, Color expected)

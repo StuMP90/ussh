@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Ussh.App.ViewModels"
+             x:Class="Ussh.App.Views.FilePaneView"
+             x:DataType="vm:FilePaneViewModel">
+  <DockPanel>
+    <!-- Title and status -->
+    <DockPanel DockPanel.Dock="Top" Margin="8,6,8,2">
+      <TextBlock DockPanel.Dock="Right" Text="{Binding Status}" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+    </DockPanel>
+
+    <!-- Path bar -->
+    <DockPanel DockPanel.Dock="Top" Margin="6,2,6,4" LastChildFill="True">
+      <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="4" Margin="0,0,6,0">
+        <Button Content="↑" Command="{Binding UpCommand}" ToolTip.Tip="Up one folder (Backspace)" Padding="10,4" />
+        <Button Content="⟳" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh (F5)" Padding="10,4" />
+      </StackPanel>
+      <TextBox Text="{Binding PathText}" FontFamily="Cascadia Mono, DejaVu Sans Mono, Consolas, monospace" FontSize="12"
+               VerticalContentAlignment="Center" x:Name="PathBox" KeyDown="OnPathKeyDown"
+               ToolTip.Tip="Type a path and press Enter" />
+    </DockPanel>
+
+    <!-- File actions -->
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="6,0,6,4">
+      <Button Content="New folder" Command="{Binding NewFolderCommand}" Padding="8,2" FontSize="12" />
+      <Button Content="Rename" Command="{Binding RenameCommand}" Padding="8,2" FontSize="12" ToolTip.Tip="F2" />
+      <Button Content="Delete" Command="{Binding DeleteCommand}" Padding="8,2" FontSize="12" ToolTip.Tip="Delete key" />
+      <Button Content="Permissions" Command="{Binding PermissionsCommand}" IsVisible="{Binding SupportsPermissions}" Padding="8,2" FontSize="12" />
+      <ToggleButton Content="Show hidden" IsChecked="{Binding ShowHidden}" Padding="8,2" FontSize="12" />
+    </StackPanel>
+
+    <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="2" MinHeight="2" />
+
+    <!-- Connection / operation error -->
+    <Border DockPanel.Dock="Top" Background="#40E05555" Padding="10,6" Margin="6,0,6,4" IsVisible="{Binding HasError}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="Retry" Command="{Binding RefreshCommand}" />
+        <TextBlock Text="{Binding Error}" TextWrapping="Wrap" VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+
+    <DataGrid x:Name="Grid" ItemsSource="{Binding Rows}" SelectionMode="Extended" IsReadOnly="True"
+              CanUserSortColumns="True" CanUserResizeColumns="True" GridLinesVisibility="None"
+              HeadersVisibility="Column" RowHeight="26" FontSize="13"
+              SelectionChanged="OnSelectionChanged" DoubleTapped="OnDoubleTapped" KeyDown="OnGridKeyDown"
+              DragDrop.AllowDrop="True">
+      <DataGrid.Columns>
+        <DataGridTemplateColumn Header="Name" Width="*" SortMemberPath="NameSort">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate x:DataType="vm:FileRowViewModel">
+              <StackPanel Orientation="Horizontal" Spacing="6" Margin="6,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Icon}" />
+                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
+        <DataGridTextColumn Header="Size" Binding="{Binding SizeText}" SortMemberPath="SizeSort" Width="80" />
+        <DataGridTextColumn Header="Modified" Binding="{Binding ModifiedText}" SortMemberPath="ModifiedSort" Width="150" />
+        <DataGridTextColumn Header="Permissions" Binding="{Binding Permissions}" Width="110" />
+        <DataGridTextColumn Header="Owner" Binding="{Binding Owner}" Width="80" />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Ussh.App.ViewModels"
+             xmlns:views="using:Ussh.App.Views"
+             x:Class="Ussh.App.Views.FilesView"
+             x:DataType="vm:FilesTabViewModel">
+  <Grid RowDefinitions="*,5,210">
+    <!-- Local | buttons | remote -->
+    <Grid ColumnDefinitions="*,Auto,*">
+      <views:FilePaneView x:Name="LocalPane" DataContext="{Binding Local}" />
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="10" Margin="4,0">
+        <Button Content="→" Command="{Binding UploadCommand}" FontSize="18" Padding="12,6"
+                ToolTip.Tip="Upload the selected local files to the remote folder" />
+        <Button Content="←" Command="{Binding DownloadCommand}" FontSize="18" Padding="12,6"
+                ToolTip.Tip="Download the selected remote files to the local folder" />
+      </StackPanel>
+      <views:FilePaneView x:Name="RemotePane" Grid.Column="2" DataContext="{Binding Remote}" />
+    </Grid>
+
+    <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="#30FFFFFF" />
+
+    <!-- Transfer queue -->
+    <DockPanel Grid.Row="2">
+      <Border DockPanel.Dock="Top" Padding="10,4" Background="#10FFFFFF">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+            <Button Content="Clear finished" Command="{Binding ClearFinishedCommand}" Padding="8,2" FontSize="12" />
+            <Button Content="Cancel all" Command="{Binding CancelAllCommand}" Padding="8,2" FontSize="12" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <TextBlock Text="Transfers" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding TransferSummary}" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Transfers}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:TransferRowViewModel">
+              <Grid ColumnDefinitions="24,2*,160,170,90,2*,Auto" Margin="10,2" ToolTip.Tip="{Binding Destination}">
+                <TextBlock Text="{Binding Arrow}" FontWeight="Bold" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <ProgressBar Grid.Column="2" Value="{Binding Percent}" Minimum="0" Maximum="100" Margin="8,0" MinWidth="0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="3" Text="{Binding SizeText}" FontSize="12" Classes="muted" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="4" Text="{Binding SpeedText}" FontSize="12" Classes="muted" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="5" Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                           Foreground="{Binding IsError, Converter={x:Static views:FilesView.StatusBrush}}" />
+                <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="4">
+                  <Button Content="Cancel" IsVisible="{Binding CanCancel}" Padding="6,0" FontSize="11"
+                          Command="{Binding $parent[UserControl].((vm:FilesTabViewModel)DataContext).CancelTransferCommand}" CommandParameter="{Binding}" />
+                  <Button Content="Retry" IsVisible="{Binding CanRetry}" Padding="6,0" FontSize="11"
+                          Command="{Binding $parent[UserControl].((vm:FilesTabViewModel)DataContext).RetryTransferCommand}" CommandParameter="{Binding}" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </DockPanel>
+  </Grid>
+</UserControl>

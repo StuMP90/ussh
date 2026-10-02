@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Ussh.App.Controls;
 using Ussh.App.Services;
 using Ussh.Core.Diagnostics;
+using Ussh.Core.Files;
 using Ussh.Core.Models;
 using Ussh.Core.Security;
 using Ussh.Core.Ssh;
@@ -156,6 +157,49 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>Raised after locking (e.g. to forget in-memory passphrases).</summary>
     public event Action? Locked;
 
+    /// <summary>
+    /// "Forgot the admin password?": after a stark warning and typing RESET, sets the old vault
+    /// aside (renamed, not deleted) and starts again with a new, empty vault.
+    /// </summary>
+    [RelayCommand]
+    private async Task ForgotPasswordAsync()
+    {
+        if (!await _dialogs.ConfirmAsync("Forgot the admin password?",
+                "The admin password can't be recovered: it's the key that encrypts everything uSSH stores.\n\n" +
+                "Starting again means losing ALL saved servers, passwords, private keys, S3 access keys and " +
+                "settings. You'll need to add them again.\n\n" +
+                "The old vault isn't deleted: it's renamed and kept, encrypted, in the same folder. If you remember " +
+                "the password later, it can be restored by renaming it back to vault.json.",
+                "I understand, continue", danger: true))
+            return;
+        var typed = await _dialogs.PromptTextAsync("Confirm reset", "Type RESET to set the old vault aside and start again:", "");
+        if (typed?.Trim() != "RESET")
+            return;
+        try
+        {
+            var aside = ResetForgottenVault();
+            await _dialogs.AlertAsync("Vault set aside",
+                $"The old vault was kept as:\n{aside}\n\nCreate a new admin password to continue.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("vault", "Setting the vault aside failed.", ex);
+            LockError = "Couldn't set the old vault aside: " + ex.Message;
+        }
+    }
+
+    /// <summary>Sets the vault aside and returns to first-run setup. Returns where it was kept.</summary>
+    internal string ResetForgottenVault()
+    {
+        var aside = _vault.SetAsideForgotten();
+        _pendingFingerprints.Clear();
+        Log.Warn("vault", $"Admin password forgotten: vault set aside as {aside}; starting a new vault.");
+        LockError = null;
+        Password = ConfirmPassword = "";
+        IsSetupRequired = true;
+        return aside;
+    }
+
     [RelayCommand]
     public void Lock()
     {
@@ -269,6 +313,81 @@ public sealed partial class MainWindowViewModel : ObservableObject
             _ = _dialogs.AlertAsync("Can't connect", ex.Message);
             return null;
         }
+    }
+
+    // ---------------------------------------------------------------- file browser tabs
+
+    /// <summary>Opens the dual-pane file browser for a server (SSH, SFTP-only or S3).</summary>
+    public void OpenFiles(ServerProfile profile)
+    {
+        if (IsLocked || _data == null)
+            return;
+        // Private copies: the tab keeps working (and reconnecting) while the vault is locked.
+        var target = profile.Clone();
+        IReadOnlyList<ServerProfile> jumpHosts;
+        try
+        {
+            jumpHosts = target.Kind == ServerKind.S3
+                ? Array.Empty<ServerProfile>()
+                : JumpHostResolver.Resolve(target, _data.Servers).Select(j => j.Clone()).ToList();
+        }
+        catch (JumpHostConfigurationException ex)
+        {
+            _ = _dialogs.AlertAsync("Can't browse files", ex.Message);
+            return;
+        }
+
+        var connector = _sessions.CreateConnector();
+        connector.HostKeyTrusted += (serverId, fingerprint) =>
+            Dispatcher.UIThread.Post(() => RememberHostKey(serverId, fingerprint));
+        IFileSystem Create() => target.Kind == ServerKind.S3
+            ? CreateS3FileSystem(target)
+            : new SftpFileSystem(target.DisplayName, token => connector.ConnectSftpAsync(target, jumpHosts, token));
+
+        // Browsing and transfers get separate connections, so big transfers can't stall browsing.
+        var tab = new FilesTabViewModel(this, target, Create(), Create(), _dialogs);
+        Tabs.Add(tab);
+        SelectedTab = tab;
+        _ = tab.InitializeAsync();
+    }
+
+    private static IFileSystem CreateS3FileSystem(ServerProfile profile) => new S3FileSystem(profile);
+
+    public async Task CloseFilesTabAsync(FilesTabViewModel tab)
+    {
+        // The live count (the tab's own figure refreshes on a timer and can lag a finished transfer).
+        var running = tab.Queue.ActiveCount;
+        if (running > 0 && !await _dialogs.ConfirmAsync("Close file browser",
+                $"{running} transfer(s) are still running. Cancel them and close?", "Cancel transfers and close", danger: true))
+            return;
+        var index = Tabs.IndexOf(tab);
+        Tabs.Remove(tab);
+        if (SelectedTab == null || SelectedTab == tab)
+            SelectedTab = Tabs.Count > 0 ? Tabs[Math.Clamp(index - 1, 0, Tabs.Count - 1)] : null;
+        await tab.ShutdownAsync();
+        OnTransfersChanged();
+    }
+
+    /// <summary>Transfers running in all file browser tabs (live, for the header and quit warning).</summary>
+    public int ActiveTransfers => Tabs.OfType<FilesTabViewModel>().Sum(t => t.Queue.ActiveCount);
+
+    public string TransfersLabel => $"⇅ {ActiveTransfers} transfer(s)";
+
+    public void OnTransfersChanged()
+    {
+        OnPropertyChanged(nameof(ActiveTransfers));
+        OnPropertyChanged(nameof(TransfersLabel));
+    }
+
+    /// <summary>Header indicator: jump to a tab with transfers running.</summary>
+    [RelayCommand]
+    private void ShowTransfers()
+    {
+        var tabs = Tabs.OfType<FilesTabViewModel>().Where(t => t.ActiveTransfers > 0).ToList();
+        if (tabs.Count == 0)
+            return;
+        var next = tabs.FirstOrDefault(t => Tabs.IndexOf(t) > Tabs.IndexOf(SelectedTab!)) ?? tabs[0];
+        SelectedTab = next;
     }
 
     // ---------------------------------------------------------------- combining tabs

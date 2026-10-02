@@ -21,15 +21,23 @@ public sealed class SshTestServer : IDisposable
     public string HostKeyFile { get; private set; } = "";
     public string? ClientPrivateKey { get; private set; }
 
+    /// <summary>Folder served as "/" over SFTP (when started with sftp: true).</summary>
+    public string? SftpRoot { get; private set; }
+
     public static bool IsAvailable { get; } = CheckAvailable();
 
     /// <param name="clientKeyPassphrase">Encrypts the generated client key with this passphrase.</param>
-    public static SshTestServer? TryStart(bool withClientKey = false, string clientKeyPassphrase = "")
+    public static SshTestServer? TryStart(bool withClientKey = false, string clientKeyPassphrase = "", bool sftp = false)
     {
         if (!IsAvailable)
             return null;
         var server = new SshTestServer { Port = FreePort() };
         server.HostKeyFile = Path.Combine(server._workDir, "host_key");
+        if (sftp)
+        {
+            server.SftpRoot = Path.Combine(server._workDir, "sftp-root");
+            Directory.CreateDirectory(server.SftpRoot);
+        }
         if (withClientKey || clientKeyPassphrase.Length > 0)
             server.ClientPrivateKey = server.GenerateClientKey(clientKeyPassphrase);
         server.Start();
@@ -46,6 +54,11 @@ public sealed class SshTestServer : IDisposable
         {
             args.Add("--authorized-key");
             args.Add(Path.Combine(_workDir, "client_key.pub"));
+        }
+        if (SftpRoot != null)
+        {
+            args.Add("--sftp-root");
+            args.Add(SftpRoot);
         }
 
         var psi = new ProcessStartInfo("python3") { RedirectStandardOutput = true, RedirectStandardError = true };

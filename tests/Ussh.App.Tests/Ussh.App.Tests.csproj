@@ -17,6 +17,7 @@
     <Using Include="Xunit" />
     <!-- Shared SSH test server harness. -->
     <Compile Include="..\Ussh.Core.Tests\Integration\SshTestServer.cs" Link="SshTestServer.cs" />
+    <Compile Include="..\Ussh.Core.Tests\Integration\S3TestServer.cs" Link="S3TestServer.cs" />
   </ItemGroup>
 
   <ItemGroup>

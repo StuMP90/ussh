@@ -69,6 +69,10 @@ public partial class TerminalPaneView : UserControl
             () => tab.ToggleBroadcastCommand.Execute(null));
         broadcast.IsEnabled = tab.HasMultiplePanes;
         items.Add(broadcast);
+        var saved = main.SavedServers.FirstOrDefault(s => s.Id == pane.Session.Profile.Id);
+        var browse = Item("Browse files", null, () => main.OpenFiles(saved ?? pane.Session.Profile));
+        browse.IsEnabled = !main.IsLocked;
+        items.Add(browse);
         if (tab.HasMultiplePanes)
             items.Add(Item("Move to new tab", null, () => main.MovePaneToNewTab(tab, pane)));
         items.Add(new Separator());

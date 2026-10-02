@@ -19,6 +19,13 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         IReadOnlyList<ShellExitOption> shellExitOptions)
     {
         ShellExitOptions = shellExitOptions;
+        _selectedKind = ServerKindOption.All.First(o => o.Kind == profile.Kind);
+        _s3Bucket = profile.S3Bucket;
+        _s3Region = profile.S3Region;
+        _s3Prefix = profile.S3Prefix;
+        _s3AccessKeyId = profile.S3AccessKeyId ?? "";
+        _s3SecretAccessKey = profile.S3SecretAccessKey ?? "";
+        _s3ServiceUrl = profile.S3ServiceUrl;
         _selectedShellExit = shellExitOptions.FirstOrDefault(o => o.Value == profile.OnShellExit) ?? shellExitOptions[0];
         _id = profile.Id;
         _dialogs = dialogs;
@@ -64,6 +71,34 @@ public sealed partial class ServerEditorViewModel : ObservableObject
     [ObservableProperty] private ThemeOption? _selectedTheme;
 
     public IReadOnlyList<ShellExitOption> ShellExitOptions { get; }
+
+    // ---- Server type ----
+    public IReadOnlyList<ServerKindOption> KindOptions => ServerKindOption.All;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Kind), nameof(ShowSshFields), nameof(ShowTerminalFields), nameof(ShowS3Fields), nameof(Heading))]
+    private ServerKindOption _selectedKind;
+
+    partial void OnSelectedKindChanged(ServerKindOption? oldValue, ServerKindOption newValue)
+    {
+        if (newValue == null && oldValue != null)
+            SelectedKind = oldValue;
+    }
+
+    public ServerKind Kind => SelectedKind?.Kind ?? ServerKind.Ssh;
+    /// <summary>Host, login, host key, jump host: SSH and SFTP-only servers.</summary>
+    public bool ShowSshFields => Kind != ServerKind.S3;
+    /// <summary>Terminal, theme, tunnels, shell exit: SSH servers only.</summary>
+    public bool ShowTerminalFields => Kind == ServerKind.Ssh;
+    public bool ShowS3Fields => Kind == ServerKind.S3;
+
+    // ---- Amazon S3 ----
+    [ObservableProperty] private string _s3Bucket;
+    [ObservableProperty] private string _s3Region;
+    [ObservableProperty] private string _s3Prefix;
+    [ObservableProperty] private string _s3AccessKeyId;
+    [ObservableProperty] private string _s3SecretAccessKey;
+    [ObservableProperty] private string _s3ServiceUrl;
     [ObservableProperty] private ShellExitOption? _selectedShellExit;
 
     partial void OnSelectedShellExitChanged(ShellExitOption? oldValue, ShellExitOption? newValue)
@@ -136,13 +171,16 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         ? "Not yet trusted. You'll be asked to confirm it on first connect."
         : "SHA256:" + HostKeyFingerprint;
 
-    public string Heading => IsNew ? "New server" : (string.IsNullOrWhiteSpace(Name) ? $"{Username}@{Host}" : Name);
+    public string Heading => IsNew ? "New server"
+        : !string.IsNullOrWhiteSpace(Name) ? Name
+        : Kind == ServerKind.S3 ? (S3Bucket.Trim().Length == 0 ? "S3 (all buckets)" : $"s3://{S3Bucket}")
+        : $"{Username}@{Host}";
 
     private void OnAnyPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(IsDirty) or nameof(ValidationError) or nameof(Heading)
             or nameof(IsPasswordAuth) or nameof(IsKeyAuth) or nameof(HostKeyDisplay) or nameof(HasHostKey)
-            or nameof(ShowStoredPassphrase))
+            or nameof(ShowStoredPassphrase) or nameof(Kind) or nameof(ShowSshFields) or nameof(ShowTerminalFields) or nameof(ShowS3Fields))
             return;
         UpdateDirty();
         if (e.PropertyName is nameof(Name) or nameof(Host) or nameof(Username))
@@ -190,6 +228,8 @@ public sealed partial class ServerEditorViewModel : ObservableObject
 
     public string? Validate()
     {
+        if (Kind == ServerKind.S3)
+            return ValidateS3();
         if (string.IsNullOrWhiteSpace(Host))
             return "Host is required.";
         if (Host.Any(char.IsWhiteSpace))
@@ -216,9 +256,41 @@ public sealed partial class ServerEditorViewModel : ObservableObject
         return null;
     }
 
-    public ServerProfile ToProfile() => new()
+    private string? ValidateS3()
+    {
+        var bucket = S3Bucket.Trim();
+        if (bucket.Contains('/') || bucket.Any(char.IsWhiteSpace))
+            return "Enter just the bucket name (put any folder in \"Start in folder\").";
+        if (S3ServiceUrl.Trim().Length == 0 && S3Region.Trim().Length == 0)
+            return "Region is required (e.g. eu-west-2).";
+        if (S3ServiceUrl.Trim().Length > 0 && !Uri.TryCreate(S3ServiceUrl.Trim(), UriKind.Absolute, out _))
+            return "Endpoint must be a full URL, e.g. https://s3.example.com.";
+        if (S3AccessKeyId.Trim().Length == 0 || S3SecretAccessKey.Length == 0)
+            return "Access key ID and secret access key are required.";
+        return null;
+    }
+
+    public ServerProfile ToProfile() => Kind == ServerKind.S3 ? ToS3Profile() : ToSshProfile();
+
+    private ServerProfile ToS3Profile() => new()
     {
         Id = _id,
+        Kind = ServerKind.S3,
+        Name = Name.Trim(),
+        Group = Group.Trim(),
+        S3Bucket = S3Bucket.Trim(),
+        S3Region = S3Region.Trim(),
+        S3Prefix = S3Prefix.Trim().Trim('/'),
+        S3AccessKeyId = S3AccessKeyId.Trim(),
+        S3SecretAccessKey = S3SecretAccessKey,
+        S3ServiceUrl = S3ServiceUrl.Trim(),
+        Notes = Notes,
+    };
+
+    private ServerProfile ToSshProfile() => new()
+    {
+        Id = _id,
+        Kind = Kind,
         Name = Name.Trim(),
         Group = Group.Trim(),
         Host = Host.Trim(),

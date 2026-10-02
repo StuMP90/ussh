@@ -6,6 +6,17 @@ public enum AuthMethod
     PrivateKey,
 }
 
+/// <summary>What a saved server is, which decides how it can be opened.</summary>
+public enum ServerKind
+{
+    /// <summary>A normal SSH server: terminal, plus file browsing over SFTP.</summary>
+    Ssh,
+    /// <summary>SFTP-only host (no shell): file browsing only.</summary>
+    SftpOnly,
+    /// <summary>An Amazon S3 bucket (or S3-compatible storage): file browsing only.</summary>
+    S3,
+}
+
 /// <summary>
 /// A saved server. Lives only inside the encrypted vault, so secrets
 /// (password, private key, passphrase) are stored here directly.
@@ -13,6 +24,7 @@ public enum AuthMethod
 public sealed class ServerProfile
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public ServerKind Kind { get; set; } = ServerKind.Ssh;
     public string Name { get; set; } = "";
     public string Group { get; set; } = "";
     public string Host { get; set; } = "";
@@ -54,7 +66,25 @@ public sealed class ServerProfile
 
     public string Notes { get; set; } = "";
 
-    public string DisplayName => string.IsNullOrWhiteSpace(Name) ? $"{Username}@{Host}" : Name;
+    // ---- Amazon S3 (Kind == S3). Secrets live only inside the encrypted vault. ----
+    /// <summary>Empty: browse every bucket the keys can list.</summary>
+    public string S3Bucket { get; set; } = "";
+    public string S3Region { get; set; } = "us-east-1";
+    /// <summary>
+    /// Folder to open at, e.g. "backups/2026". With no bucket set, it starts with the bucket
+    /// name ("my-bucket/backups"). Empty for the top level.
+    /// </summary>
+    public string S3Prefix { get; set; } = "";
+    public string? S3AccessKeyId { get; set; }
+    public string? S3SecretAccessKey { get; set; }
+    /// <summary>Optional endpoint for S3-compatible storage (MinIO, Backblaze B2, R2…); empty for AWS.</summary>
+    public string S3ServiceUrl { get; set; } = "";
+
+    public bool HasTerminal => Kind == ServerKind.Ssh;
+
+    public string DisplayName => !string.IsNullOrWhiteSpace(Name) ? Name
+        : Kind == ServerKind.S3 ? (S3Bucket.Length == 0 ? "S3 (all buckets)" : $"s3://{S3Bucket}")
+        : $"{Username}@{Host}";
 
     public ServerProfile Clone()
     {

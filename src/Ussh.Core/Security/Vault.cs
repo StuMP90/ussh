@@ -125,6 +125,31 @@ public sealed class Vault
         }
     }
 
+    /// <summary>
+    /// For a forgotten admin password: sets the current vault aside so a new one can be created.
+    /// Nothing is deleted. The vault (and its backup) are renamed to
+    /// "vault.forgotten-yyyyMMdd-HHmmss.json" in the same folder: still encrypted, and usable again
+    /// (renamed back) if the password turns up. Returns the new name of the set-aside vault.
+    /// </summary>
+    public string SetAsideForgotten()
+    {
+        lock (_gate)
+        {
+            if (!Exists)
+                throw new VaultException("No vault exists yet.");
+            Lock();
+            var directory = System.IO.Path.GetDirectoryName(_path) ?? ".";
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var aside = System.IO.Path.Combine(directory, $"vault.forgotten-{stamp}.json");
+            for (var i = 2; File.Exists(aside); i++)
+                aside = System.IO.Path.Combine(directory, $"vault.forgotten-{stamp}-{i}.json");
+            File.Move(_path, aside);
+            if (File.Exists(_path + ".bak"))
+                File.Move(_path + ".bak", aside + ".bak");
+            return aside;
+        }
+    }
+
     public static void ValidateNewPassword(string password)
     {
         if (string.IsNullOrEmpty(password) || password.Length < MinimumPasswordLength)
