@@ -1,7 +1,7 @@
 # ussh
 
 A cross-platform (Windows + Linux) SSH client with tabs, saved servers, port forwarding and
-sessions designed to stay up for days. Built with C#/.NET 8 and [Avalonia](https://avaloniaui.net/),
+sessions designed to stay up for days. Built with C#/.NET 10 and [Avalonia](https://avaloniaui.net/),
 MIT licensed, and packaged as MSIX for the Microsoft Store.
 
 ## Features
@@ -105,7 +105,8 @@ for minutes. The full list is in [src/XtermSharp/NOTICE.md](src/XtermSharp/NOTIC
 
 ## Building and running
 
-Requires the .NET 8 SDK.
+Requires the .NET 10 SDK (`global.json` asks for 10.0.100 or a later 10.0 feature band). On
+Ubuntu 24.04: `sudo apt install dotnet-sdk-10.0`; on Windows: `winget install Microsoft.DotNet.SDK.10`.
 
 ```bash
 dotnet run --project src/Ussh.App
