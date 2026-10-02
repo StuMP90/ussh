@@ -13,6 +13,11 @@ rm -rf "$STAGE"
 dotnet publish "$ROOT/src/Ussh.App/Ussh.App.csproj" -c Release -r "linux-$ARCH" --self-contained true \
   -p:Version="$VERSION" -o "$STAGE/lib"
 
+# Licence texts for everything shipped (shown in the app under Help → Licences).
+python3 "$ROOT/tools/generate-third-party-notices.py" --rid "linux-$ARCH" --output "$STAGE/lib/THIRD-PARTY-NOTICES.txt"
+cp "$ROOT/LICENSE" "$STAGE/lib/LICENSE.txt"
+cp "$STAGE/lib/THIRD-PARTY-NOTICES.txt" "$STAGE/lib/LICENSE.txt" "$STAGE/"
+
 mkdir -p "$STAGE/share/applications" "$STAGE/share/icons/hicolor/256x256/apps"
 cp "$ROOT/src/Ussh.App/Assets/ussh.png" "$STAGE/share/icons/hicolor/256x256/apps/ussh.png"
 cat > "$STAGE/share/applications/ussh.desktop" <<EOF

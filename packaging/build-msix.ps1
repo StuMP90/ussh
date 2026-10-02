@@ -51,6 +51,14 @@ foreach ($arch in $Architecture) {
         -p:Version=$($Version -replace '\.0$', '') -o $layout
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 
+    # Licence texts for everything shipped (shown in the app under Help → Licences).
+    # "python" first: on Windows "python3" can be the Microsoft Store placeholder.
+    $python = Get-Command python, py, python3 -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $python) { throw "Python 3 is needed to generate THIRD-PARTY-NOTICES.txt." }
+    & $python.Source (Join-Path $root "tools/generate-third-party-notices.py") --rid "win-$arch" --output (Join-Path $layout "THIRD-PARTY-NOTICES.txt")
+    if ($LASTEXITCODE -ne 0) { throw "Generating third-party notices failed" }
+    Copy-Item (Join-Path $root "LICENSE") (Join-Path $layout "LICENSE.txt")
+
     Copy-Item -Recurse (Join-Path $root "packaging/msix/Images") (Join-Path $layout "Images")
     (Get-Content (Join-Path $root "packaging/msix/AppxManifest.xml") -Raw) `
         -replace '\$\(IdentityName\)', $IdentityName `

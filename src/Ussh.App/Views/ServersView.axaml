@@ -314,7 +314,10 @@
         <Button Content="Change password" Command="{Binding ChangePasswordCommand}" />
 
         <TextBlock Classes="h2" Text="About" />
-        <SelectableTextBlock Text="{Binding AppVersion}" />
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <SelectableTextBlock Text="{Binding AppVersion}" VerticalAlignment="Center" />
+          <Button Content="Licences" Click="OnLicences" ToolTip.Tip="uSSH's licence and the licences of everything it includes" />
+        </StackPanel>
 
         <TextBlock Classes="h2" Text="Data" />
         <SelectableTextBlock Text="{Binding VaultLocation}" Classes="muted" FontSize="12" />

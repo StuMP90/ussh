@@ -14,6 +14,12 @@ public partial class ServersView : UserControl
             vm.SelectedServers = ServerList.SelectedItems?.OfType<ServerItemViewModel>().ToList() ?? new List<ServerItemViewModel>();
     }
 
+    private void OnLicences(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is Window owner)
+            _ = new LicensesWindow().ShowDialog(owner);
+    }
+
     private void OnServerDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (DataContext is ServersTabViewModel vm && vm.ConnectCommand.CanExecute(null))

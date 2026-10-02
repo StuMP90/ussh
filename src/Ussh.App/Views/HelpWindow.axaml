@@ -31,6 +31,8 @@
     <Border DockPanel.Dock="Bottom" Padding="16,10" Background="#10FFFFFF">
       <DockPanel>
         <Button DockPanel.Dock="Right" Content="Close" IsDefault="True" IsCancel="True" Click="OnClose" MinWidth="90" />
+        <Button DockPanel.Dock="Right" Content="Licences" Click="OnLicences" Margin="0,0,8,0"
+                ToolTip.Tip="uSSH's licence and the licences of everything it includes" />
         <TextBlock x:Name="VersionText" VerticalAlignment="Center" Opacity="0.6" />
       </DockPanel>
     </Border>

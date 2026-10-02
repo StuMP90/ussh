@@ -97,4 +97,6 @@ public partial class HelpWindow : Window
     }
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
+
+    private void OnLicences(object? sender, RoutedEventArgs e) => _ = new LicensesWindow().ShowDialog(this);
 }

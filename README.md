@@ -270,3 +270,20 @@ The same list is in the app: **Help** in the top bar, or **Ctrl+Shift+H**.
   scrolling.
 - The Windows build is compiled and packaged by CI but has not been exercised by the
   automated UI tests, which run on Linux.
+
+## Licence
+
+uSSH is released under the [MIT License](LICENSE).
+
+The vendored terminal engine in `src/XtermSharp` keeps its own MIT licence
+([src/XtermSharp/LICENSE](src/XtermSharp/LICENSE), © the xterm.js authors and Miguel de Icaza).
+Other components come from NuGet under their own licences, chiefly MIT (Avalonia, SSH.NET,
+CommunityToolkit.Mvvm) and Apache 2.0 (AWS SDK for .NET); all are permissive and compatible
+with MIT.
+
+Release builds (MSIX and Linux tarball) include `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`,
+which lists every bundled component (including the .NET runtime and the Inter font) with its
+copyright and licence text, as those licences require. It's generated per platform by
+`tools/generate-third-party-notices.py` from the packages actually restored, so it stays
+current when dependencies change; the packaging scripts run it, and the build fails if any
+package has no licence text. In the app: **Help → Licences** or **Settings → About → Licences**.

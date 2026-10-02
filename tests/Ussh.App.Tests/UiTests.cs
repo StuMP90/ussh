@@ -807,6 +807,29 @@ public sealed class UiTests : IDisposable
         Assert.Empty(vm.Servers.FilteredServers);
     }
 
+    [AvaloniaFact]
+    public async Task LicencesWindowShowsBundledNotices()
+    {
+        var notices = Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.txt");
+        Assert.False(File.Exists(notices));
+        Assert.Contains("development build", LicensesWindow.Load()); // not packaged: says where they come from
+
+        File.WriteAllText(notices, "uSSH: THIRD-PARTY NOTICES\n\nSSH.NET 2026.0.0\nLicence: MIT");
+        try
+        {
+            Assert.StartsWith("uSSH: THIRD-PARTY NOTICES", LicensesWindow.Load());
+            var window = new LicensesWindow();
+            window.Show();
+            await Pump(100);
+            Assert.Contains(window.GetVisualDescendants().OfType<SelectableTextBlock>(), t => t.Text?.Contains("SSH.NET") == true);
+            window.Close();
+        }
+        finally
+        {
+            File.Delete(notices);
+        }
+    }
+
     [Fact]
     public void TransferSpeedsAreShownInBitsPerSecond()
     {
