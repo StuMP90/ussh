@@ -9,7 +9,8 @@ MIT licensed, and packaged as MSIX for the Microsoft Store.
 - **Tabbed SSH terminals**: xterm-256color, truecolor, mouse support (vim, htop, mc), bracketed
   paste, scrollback, selection and copy/paste, CJK and emoji widths.
 - **Server management**: add, edit, duplicate, delete, group and search servers. Password or
-  private-key (OpenSSH/PEM, optional passphrase) authentication.
+  private-key authentication: OpenSSH, PEM and PuTTY `.ppk` (v2 and v3) keys, with an
+  optional passphrase.
 - **Admin password**: all server configuration, including passwords and keys, lives in one
   encrypted vault. The admin password is required to view or edit servers and to open
   connections. Auto-lock after inactivity; locking does **not** drop open sessions.
@@ -198,7 +199,7 @@ The tarball is self-contained and includes an `install.sh` (installs to `~/.loca
 
 ## Known limitations and roadmap
 
-- Not yet: SFTP browser and PuTTY `.ppk` keys (convert with PuTTYgen).
+- Not yet: SFTP browser.
 - Line reflow on resize is disabled (the upstream reflow code is unreliable); long lines are
   truncated when the window narrows, like xterm.
 - Rendering redraws the whole visible screen when anything changes. That's fine for normal

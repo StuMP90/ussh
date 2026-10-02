@@ -18,8 +18,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Install SSH test server dependency
-        run: pip install paramiko
+      - name: Install test dependencies (SSH test server, PuTTY key tests)
+        run: |
+          pip install paramiko
+          sudo apt-get update && sudo apt-get install -y putty-tools
       - run: dotnet test --configuration Release
 
   linux:

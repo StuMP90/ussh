@@ -5,16 +5,18 @@ namespace Ussh.Core.Ssh;
 
 public static class KeyValidator
 {
-    /// <summary>Returns null if the private key loads, otherwise a message suitable for the user.</summary>
+    /// <summary>
+    /// Returns null if the private key loads, otherwise a message suitable for the user.
+    /// Accepts OpenSSH, PEM (PKCS#1/PKCS#8) and PuTTY .ppk (v2 and v3) private keys.
+    /// </summary>
     public static string? Validate(string? privateKey, string? passphrase)
     {
         if (string.IsNullOrWhiteSpace(privateKey))
             return "Paste or import a private key.";
         var trimmed = privateKey.Trim();
-        if (trimmed.StartsWith("ssh-", StringComparison.Ordinal) || trimmed.StartsWith("ecdsa-", StringComparison.Ordinal))
-            return "That looks like a public key (.pub). Use the private key file instead.";
-        if (trimmed.StartsWith("PuTTY-User-Key-File", StringComparison.Ordinal))
-            return "PuTTY .ppk keys aren't supported. Convert it with PuTTYgen (Conversions → Export OpenSSH key).";
+        if (trimmed.StartsWith("ssh-", StringComparison.Ordinal) || trimmed.StartsWith("ecdsa-", StringComparison.Ordinal)
+            || trimmed.StartsWith("---- BEGIN SSH2 PUBLIC KEY", StringComparison.Ordinal))
+            return "That looks like a public key. Use the private key file instead.";
         try
         {
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(trimmed + "\n"));
@@ -23,9 +25,15 @@ public static class KeyValidator
         }
         catch (Exception ex)
         {
+            // PuTTY reports a wrong passphrase as a failed MAC check; say what it means.
+            if (IsPuTTY(trimmed) && !string.IsNullOrEmpty(passphrase) && ex.Message.Contains("MAC", StringComparison.Ordinal))
+                return "Private key could not be loaded: wrong passphrase for this PuTTY key.";
             return "Private key could not be loaded: " + ex.Message;
         }
     }
+
+    public static bool IsPuTTY(string? privateKey) =>
+        privateKey?.TrimStart().StartsWith("PuTTY-User-Key-File-", StringComparison.Ordinal) == true;
 
     /// <summary>
     /// For "ask for passphrase every time": the key must parse and be passphrase-protected.
